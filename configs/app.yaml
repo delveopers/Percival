@@ -1,0 +1,17 @@
+run:
+  name: prototype
+  seed: 42
+paths:
+  input_dir: data/samples
+  output_dir: data/exports
+  extensions: [.mp4, .avi, .mov, .mkv]
+  recursive: false
+logging:
+  level: INFO
+  format: json
+  file: data/exports/percival.log
+output:
+  save_annotated_video: true
+  save_observations: true
+  observations_format: jsonl
+  show_window: false
