@@ -47,6 +47,7 @@ class MotionCfg(Section):
   min_box: tuple[int, int] = (20, 20)
   min_contour_points: int = Field(5, ge=1)
   merge_overlap: float = Field(0.3, ge=0, le=1)
+  scene_change_fraction: float = Field(0.4, gt=0, le=1)
   heatmap_alpha: float = Field(0.4, ge=0, le=1)
 
   @field_validator("morph_kernel")
