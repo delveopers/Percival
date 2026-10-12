@@ -18,10 +18,16 @@ tracking:
   max_lost_frames: 30
   min_track_length: 5
 anomaly:
-  enabled: true
-  stationary_seconds: 20
-  loitering_seconds: 30
-  speed_zscore: 3.0
-  crowd_count: 8
-  warmup_frames: 150
-  min_confidence: 0.5
+  rules: [stationary, abandoned, loitering, speed, crowd]
+  stationary_radius: 0.25
+  loiter_radius: 3.0
+  owner_distance: 1.5
+  owner_absent_seconds: 10
+  crowd_min_seconds: 2.0
+  cooldown_seconds: 5.0
+  speed_min_samples: 50
+  stationary_classes: [car, bus, truck, motorcycle, bicycle]
+  abandoned_classes: [backpack, handbag, suitcase]
+  loiter_classes: [person]
+  speed_classes: [person, bicycle, car, motorcycle, bus, truck]
+  crowd_classes: [person]

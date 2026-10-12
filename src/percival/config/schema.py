@@ -67,18 +67,41 @@ class TrackingCfg(Section):
   max_lost_frames: int = Field(30, ge=0)
   min_track_length: int = Field(5, ge=1)
 
+RULE_NAMES = ("stationary", "abandoned", "loitering", "speed", "crowd")
+
 class AnomalyCfg(Section):
   enabled: bool = True
+  rules: tuple[str, ...] = RULE_NAMES
   stationary_seconds: float = Field(20, gt=0)
   loitering_seconds: float = Field(30, gt=0)
   speed_zscore: float = Field(3.0, gt=0)
   crowd_count: int = Field(8, ge=1)
   warmup_frames: int = Field(150, ge=0)
   min_confidence: float = Field(0.5, ge=0, le=1)
+  stationary_radius: float = Field(0.25, gt=0)
+  loiter_radius: float = Field(3.0, gt=0)
+  owner_distance: float = Field(1.5, gt=0)
+  owner_absent_seconds: float = Field(10, gt=0)
+  crowd_min_seconds: float = Field(2.0, ge=0)
+  cooldown_seconds: float = Field(5.0, ge=0)
+  speed_min_samples: int = Field(50, ge=2)
+  stationary_classes: tuple[str, ...] = ("car", "bus", "truck", "motorcycle", "bicycle")
+  abandoned_classes: tuple[str, ...] = ("backpack", "handbag", "suitcase")
+  loiter_classes: tuple[str, ...] = ("person",)
+  speed_classes: tuple[str, ...] = ("person", "bicycle", "car", "motorcycle", "bus", "truck")
+  crowd_classes: tuple[str, ...] = ("person",)
+
+  @field_validator("rules")
+  @classmethod
+  def check_rules(cls, v):
+    bad = [r for r in v if r not in RULE_NAMES]
+    if bad: raise ValueError(f"unknown rules {bad}, valid: {list(RULE_NAMES)}")
+    return v
 
   @model_validator(mode="after")
   def check_times(self):
     if self.loitering_seconds < self.stationary_seconds: raise ValueError("loitering_seconds must be >= stationary_seconds")
+    if self.owner_absent_seconds > self.stationary_seconds: raise ValueError("owner_absent_seconds must be <= stationary_seconds")
     return self
 
 class DetectorCfg(Section):
