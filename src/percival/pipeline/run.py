@@ -23,7 +23,7 @@ def now_iso(): return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 def process_clip(cfg, clip, run_id, out_dir, writers, detector, tracker_factory):
   ing = cfg.ingestion
-  fps = clip.fps / ing.sample_every_n_frame
+  fps = clip.fps / ing.sample_every_n_frames
 
   m = Metrics()
   motion = MotionStage(cfg.motion) if cfg.motion.enabled else None
@@ -47,6 +47,8 @@ def process_clip(cfg, clip, run_id, out_dir, writers, detector, tracker_factory)
       m.add("scene_changes", scene)
 
       if detector:
+        # with m.time("detect"): dets, yolo_boxes = detector.detect(frame)
+        # with m.time("track"): ctx.observation = tracker.update(frame, dets, yolo_boxes)
         with m.time("detect"): dets = detector.detect(frame)
         with m.time("track"): ctx.observation = tracker.update(frame, dets)
         for o in ctx.observation: writers["observations"].write(o)

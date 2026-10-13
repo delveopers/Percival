@@ -16,8 +16,8 @@ class ActiveEvent:
 class AnomalyEngine:
   def __init__(self, cfg, run_id, clip_id):
     self.cfg, self.run_id, self.clip_id = cfg, run_id, clip_id
-    self.rules = [RULES[n] for n in cfg.rules]
-    self.events = []
+    self.rules = [RULES[n](cfg) for n in cfg.rules]
+    self.events = {}
     self.frames = 0
 
   @property

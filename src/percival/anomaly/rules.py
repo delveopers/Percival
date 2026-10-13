@@ -48,10 +48,11 @@ def spread(points):
 
 def speed(points):
   c = np.array([center(p.box) for p in points])
-  dt = np.diff([p.timestamp for p in points])
+  dt = np.diff([p.timestamp_s for p in points])
   step = np.linalg.norm(np.diff(c, axis=0), axis=1)
   sizes = np.array([size(p.box) for p in points[1:]])
-  return float(np.median(step / np.maximum(dt, 1e-6) / np.maximum(size, 1e-6)))
+  # print(type(sizes), sizes)
+  return float(np.median(step / np.maximum(dt, 1e-6) / np.maximum(sizes, 1e-6)))
 
 def still(inp, cfg, classes):
   now, out = inp.frame.timestamp_s, []
@@ -85,7 +86,7 @@ class StationaryRule:
 class AbandonedRule:
   kind = "abandoned_object"
 
-  def __int__(self, cfg):
+  def __init__(self, cfg):
     self.cfg = cfg
     self.people = deque()
 

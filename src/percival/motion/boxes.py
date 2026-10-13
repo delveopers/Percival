@@ -22,7 +22,7 @@ def merge_boxes(boxes, threshold):
       cur = boxes.pop()
       i = 0
       while i < len(boxes):
-        if overlap_ratio(cur, boxes[1]) > threshold:
+        if overlap_ratio(cur, boxes[i]) > threshold:
           cur = union(cur, boxes.pop(i))
           merged, i = True, 0
         else: i += 1

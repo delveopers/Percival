@@ -11,13 +11,13 @@ def resolve_device(requested):
 class Detector:
   def __init__(self, cfg, version):
     from ultralytics import YOLO
-    
+
     self.cfg, self.version = cfg, version
     self.device = resolve_device(cfg.device)
     self.half = cfg.half and self.device != "cpu"
     self.model = YOLO(cfg.weights)
     self.names = dict(self.model.names)
-    
+
     lookup = {name: i for i, name in self.names.items()}
     missing = [c for c in cfg.classes if c not in lookup]
 
@@ -27,7 +27,8 @@ class Detector:
 
   def detect(self, frame):
     c = self.cfg
-    result = self.model.predict(frame.img, conf=c.conf, iou=c.iou, imgsz=c.imgsz, classes=self.class_ids, device=self.device, half=self.half, verbose=False)[0]
+    quantize = 16 if self.half else 32
+    result = self.model.predict(frame.image, conf=c.conf, iou=c.iou, imgsz=c.imgsz, classes=self.class_ids, device=self.device, quantize=quantize, verbose=False)[0]
     boxes = result.boxes
     if boxes is None or len(boxes) == 0: return []
     xyxy, conf, cls = boxes.xyxy.cpu().numpy(), boxes.conf.cpu().numpy(), boxes.cls.cpu().numpy().astype(int)

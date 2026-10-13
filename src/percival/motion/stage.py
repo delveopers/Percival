@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from percival.contracts import ChangeCandidates, MotionResult
+from percival.contracts import ChangeCandidate, MotionResult
 from .boxes import merge_boxes
 
 BLUR = (5, 5)
@@ -49,5 +49,5 @@ class MotionStage:
   def _candidate(self, frame, box, diff):
     x, y, w, h = box
     score = float(diff[y:y + h, x:x + w].mean()) / 256
-    return ChangeCandidates(run_id=frame.run_id, clip_id=frame.clip_id, source_index=frame.source_index, sample_index=frame.sample_index,
+    return ChangeCandidate(run_id=frame.run_id, clip_id=frame.clip_id, source_index=frame.source_index, sample_index=frame.sample_index,
                             timestamp_s=frame.timestamp_s, box=box, score=score, area=w*h)

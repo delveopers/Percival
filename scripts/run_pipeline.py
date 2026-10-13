@@ -3,7 +3,7 @@ import sys
 
 from percival.config import load_config, ConfigError
 from percival.ingestion import NoClipsError
-from percival.pipeline import run
+from percival.pipeline.run import run
 
 
 def main():

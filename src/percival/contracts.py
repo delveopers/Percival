@@ -32,14 +32,14 @@ class ChangeCandidate(BaseModel):
   score: float
   area: int
 
-@dataclass(slote=True)
+@dataclass(slots=True)
 class MotionResult:
   candidates: list[ChangeCandidate]
   scene_change: bool
   changed_fraction: float
   diff_map: Optional[np.ndarray] = None
 
-class Detection:
+class Detection(BaseModel):
   model_config = ConfigDict(frozen=True)
   run_id: str; clip_id: str
   source_index: int; sample_index: int
