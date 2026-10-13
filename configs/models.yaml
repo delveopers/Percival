@@ -1,0 +1,20 @@
+detector:
+  name: yolo
+  weights: yolov8n.pt
+  device: auto
+  imgsz: 640
+  conf: 0.35
+  iou: 0.5
+  classes: [person, bicycle, car, motorcycle, bus, truck, backpack, handbag, suitcase]
+  half: false
+tracker:
+  name: bytetrack
+  track_high_thresh: 0.5
+  track_low_thresh: 0.1
+  new_track_thresh: 0.6
+  track_buffer: 30
+  match_thresh: 0.8
+version:
+  detector: v1
+  tracker: v1
+  motion: v1

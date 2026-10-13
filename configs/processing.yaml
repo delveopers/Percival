@@ -1,0 +1,33 @@
+ingestion:
+  sample_every_n_frames: 2
+  resize_width: 640
+  queue_size: 32
+  max_frames: null
+motion:
+  enabled: true
+  reference_mode: running_average
+  background_alpha: 0.02
+  diff_threshold: 30
+  morph_kernel: 5
+  min_box: [20, 20]
+  min_contour_points: 5
+  merge_overlap: 0.3
+  heatmap_alpha: 0.4
+tracking:
+  enabled: true
+  max_lost_frames: 30
+  min_track_length: 5
+anomaly:
+  rules: [stationary, abandoned, loitering, speed, crowd]
+  stationary_radius: 0.25
+  loiter_radius: 3.0
+  owner_distance: 1.5
+  owner_absent_seconds: 10
+  crowd_min_seconds: 2.0
+  cooldown_seconds: 5.0
+  speed_min_samples: 50
+  stationary_classes: [car, bus, truck, motorcycle, bicycle]
+  abandoned_classes: [backpack, handbag, suitcase]
+  loiter_classes: [person]
+  speed_classes: [person, bicycle, car, motorcycle, bus, truck]
+  crowd_classes: [person]
