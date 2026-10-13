@@ -1,12 +1,12 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from percival.contracts import Anomaly
 from .rules import RULES, RuleInput
 
 @dataclass(slots=True)
 class ActiveEvent:
   kind: str
-  start_s: float; end_s: float
-  start_index: int; end_index: int
+  start_s: float; last_s: float
+  start_index: int; last_index: int
   confidence: float
   track_ids: list
   class_names: list

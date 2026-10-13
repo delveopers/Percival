@@ -73,7 +73,7 @@ class Tracklet(BaseModel):
 class Anomaly(BaseModel):
   model_config = ConfigDict(frozen=True)
   run_id: str; clip_id: str
-  king: AnomalyKind
+  kind: AnomalyKind
   confidence: float
   start_s: float; end_s: float
   start_index: int; end_index: int
