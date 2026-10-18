@@ -7,9 +7,10 @@ JUMP_PER_FRAME, DUP_IOU, MIN_COVERAGE, BIG_GAP, FRAG_GAP, FRAG_DIST = 1.0, 0.7, 
 STAGES = ("motion", "detect", "track", "anomaly", "render")
 
 def load(run_dir, name):
-  for ext in (".jsonl", ".json"):
-    p = run_dir / f"{name}{ext}"
-    if p.is_file(): return [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+  for stem in (name, name.rstrip("s")):
+    for ext in (".jsonl", ".json"):
+      p = run_dir / f"{stem}{ext}"
+      if p.is_file(): return [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
   return []
 
 def center(b): return (b[0] + b[2] / 2, b[1] + b[3] / 2)
@@ -73,7 +74,9 @@ def clip_report(entry, cfg, obs, trk, ang, chg):
 
   per_frame = [len(v) for v in by_frame.values()]
   dup_frames = sum(1 for v in by_frame.values() if len(v) > 1 and len({tuple(round(x, 1) for x in r["box"]) for r in v}) < len(v))
-  geo = dup_frames == 0
+  expected = counts.get("observations", counts.get("observation"))
+  consistent = expected is None or expected == len(obs)
+  geo = dup_frames == 0 and consistent
   tracks = [track_stats(v) for v in by_track.values()]
   chg_frames = {c["sample_index"] for c in chg}
   tracklet_points = sum(len(t["points"]) for t in trk)
@@ -82,7 +85,7 @@ def clip_report(entry, cfg, obs, trk, ang, chg):
   total = sum(seconds.values()) or 1
 
   r = {"clip_id": entry["clip_id"], "frames": frames, "effective_fps": fps, "duration_s": round(frames / fps, 1), "observations": len(obs), "frames_with_observations": len(by_frame), "objects_per_frame_mean": round(st.mean(per_frame), 1) if per_frame else 0, "objects_per_frame_max": max(per_frame, default=0),
-       "duplicate_box_frames": dup_frames, "tracks": len(tracks), "tracklets": len(trk), "orphan_observations": len(obs) - tracklet_points,
+       "duplicate_box_frames": dup_frames, "tracks": len(tracks), "tracklets": len(trk), "orphan_observations": len(obs) - tracklet_points if consistent else None,
        "tracks_short": sum(t["n"] < cfg["tracking"]["min_track_length"] for t in tracks), "tracks_low_coverage": [t["track_id"] for t in tracks if t["coverage"] < MIN_COVERAGE], "tracks_big_gap": [[t["track_id"], t["max_gap"]] for t in tracks if t["max_gap"] > BIG_GAP], "tracks_hopping": [[t["track_id"], round(t["max_hop"], 2)] for t in tracks if t["max_hop"] > JUMP_PER_FRAME] if geo else [],
        "duplicate_track_pairs": duplicate_pairs(by_frame) if geo else [], "possible_fragments": fragments(tracks) if geo else [], "median_track_points": st.median([t["n"] for t in tracks]) if tracks else 0,
        "motion": {"candidates": len(chg), "frames_with_changes": len(chg_frames), "frames_motion_without_detection": len(chg_frames - set(by_frame))},
@@ -90,9 +93,10 @@ def clip_report(entry, cfg, obs, trk, ang, chg):
   flags = []
 
   if dup_frames or counts.get("duplicate_box_frames"): flags.append(("FAIL", f"{dup_frames} frames have observations sharing the same box (tracker-to-detection mapping is broken)"))
-  if not geo: flags.append(("INFO", "geometry checks (ID hopping, duplicate IDs, fragments) skipped because the boxes are invalid"))
-  if not obs and chg: flags.append(("WARN", f"no detections at all, but motion found in {len(chg_frames)} frames"))
-  if r["orphan_observations"]: flags.append(("WARN", f"{r['orphan_observations']} observations belong to no tracklet (short fragments or reused IDs)"))
+  if not consistent: flags.append(("FAIL", f"manifest counted {expected} observations but {len(obs)} were loaded (observations file missing or renamed?)"))
+  if not geo and consistent: flags.append(("INFO", "geometry checks (ID hopping, duplicate IDs, fragments) skipped because the boxes are invalid"))
+  if not obs and chg and consistent: flags.append(("WARN", f"no detections at all, but motion found in {len(chg_frames)} frames"))
+  if consistent and r["orphan_observations"]: flags.append(("WARN", f"{r['orphan_observations']} observations belong to no tracklet (short fragments or reused IDs)"))
   if r["tracks_hopping"]: flags.append(("WARN", f"{len(r['tracks_hopping'])} tracks jump farther than {JUMP_PER_FRAME} box sizes per frame (ID hopping): {r['tracks_hopping'][:5]}"))
   if r["tracks_low_coverage"]: flags.append(("WARN", f"{len(r['tracks_low_coverage'])} tracks are seen in under {int(MIN_COVERAGE * 100)}% of their frames: {r['tracks_low_coverage'][:8]}"))
   if r["tracks_big_gap"]: flags.append(("WARN", f"{len(r['tracks_big_gap'])} tracks have gaps over {BIG_GAP} frames: {r['tracks_big_gap'][:5]}"))
@@ -117,8 +121,7 @@ def analyze(run_dir):
   pick = lambda rows, cid: [r for r in rows if r["clip_id"] == cid]
   clips = [clip_report(e, run["config"], pick(obs, e["clip_id"]), pick(trk, e["clip_id"]), pick(ang, e["clip_id"]), pick(chg, e["clip_id"])) for e in run["clips"] if e["status"] == "completed"]
   skipped = [{"clip_id": e["clip_id"], "status": e["status"], "error": e.get("error")} for e in run["clips"] if e["status"] != "completed"]
-  status = "FAIL" if any(c["status"] == "FAIL" for c in clips) else "WARN" if any(c["status"] == "WARN" for c in clips) or skipped else "PASS"
-
+  status = "FAIL" if not clips or any(c["status"] == "FAIL" for c in clips) else "WARN" if any(c["status"] == "WARN" for c in clips) or skipped else "PASS"
   return {"run_id": run["run_id"], "run_status": run["status"], "status": status, "clips": clips, "not_completed": skipped}
 
 def render(rep):
@@ -129,7 +132,7 @@ def render(rep):
   for s in rep["not_completed"]: out.append(f"{s['clip_id'][:40]:40} not completed: {s['status']} {s['error'] or ''}")
 
   for c in rep["clips"]:
-    out += ["", f"== {c['clip_id']}  [{c['status']}]", f"  {c['duration_s']}s at {c['effective_fps']} fps, {c['frames']} frames", f"  objects per frame: mean {c['objects_per_frame_mean']}, max {c['objects_per_frame_max']}; frames with objects: {c['frames_with_observations']}", f"  tracks {c['tracks']} (median {c['median_track_points']} points), tracklets {c['tracklets']}, orphan observations {c['orphan_observations']}",
+    out += ["", f"== {c['clip_id']}  [{c['status']}]", f"  {c['duration_s']}s at {c['effective_fps']} fps, {c['frames']} frames", f"  objects per frame: mean {c['objects_per_frame_mean']}, max {c['objects_per_frame_max']}; frames with objects: {c['frames_with_observations']}", f"  tracks {c['tracks']} (median {c['median_track_points']} points), tracklets {c['tracklets']}, orphan observations {'n/a' if c['orphan_observations'] is None else c['orphan_observations']}",
             f"  motion: {c['motion']['candidates']} candidates in {c['motion']['frames_with_changes']} frames, {c['motion']['frames_motion_without_detection']} of them with no detection"]
     if c["avg_ms_per_frame"]: out.append("  ms per frame: " + ", ".join(f"{k} {v}" for k, v in c["avg_ms_per_frame"].items()) + "  | time share: " + ", ".join(f"{k} {int(v * 100)}%" for k, v in c["time_share"].items()))
 

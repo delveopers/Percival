@@ -16,7 +16,7 @@ from percival.tracking import TrackletBuilder
 from percival.visualization import VideoSink, Display, compose
 
 log = logging.getLogger(__name__)
-WRITERS = ("observations", "tracklets", "anomalies", "changes")
+WRITERS = ("observation", "tracklets", "anomalies", "changes")
 
 def make_run_id(): return datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid4().hex[:6]
 def now_iso(): return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -49,16 +49,16 @@ def process_clip(cfg, clip, run_id, out_dir, writers, detector, tracker_factory)
 
       if detector:
         with m.time("detect"): dets = detector.detect(frame)
-        with m.time("track"): ctx.observations = tracker.update(frame, dets)
+        with m.time("track"): ctx.observation = tracker.update(frame, dets)
         m.add("tracker_dropped", getattr(tracker, "last_dropped", 0))
-        m.add("duplicate_box_frames", len({o.box for o in ctx.observations}) < len(ctx.observations))
+        m.add("duplicate_box_frames", len({o.box for o in ctx.observation}) < len(ctx.observation))
 
-        for o in ctx.observations: writers["observations"].write(o)
-        m.add("observations", len(ctx.observations))
-        closed = builder.update(ctx.observations, frame.sample_index)
+        for o in ctx.observation: writers["observation"].write(o)
+        m.add("observation", len(ctx.observation))
+        closed = builder.update(ctx.observation, frame.sample_index)
 
         if engine:
-          with m.time("anomaly"): events = engine.update(frame, ctx.observations, builder.tracks, scene)
+          with m.time("anomaly"): events = engine.update(frame, ctx.observation, builder.tracks, scene)
           for a in events: writers["anomalies"].write(a)
           m.add("anomalies", len(events))
           ctx.anomalies = engine.active
@@ -123,7 +123,7 @@ def run(cfg, detector=None, tracker_factory=None):
           totals.merge(m)
           entry.update(status="interrupted" if stopped else "completed", effective_fps=clip.fps / cfg.ingestion.sample_every_n_frames, **m.snapshot())
           log.info("clip done: %s", m.snapshot()["counts"])
-          if m.counts["duplicate_box_frames"]: log.error("%d frames have observations sharing a box, tracker mapping is broken", m.counts["duplicate_box_frames"])
+          if m.counts["duplicate_box_frames"]: log.error("%d frames have observation sharing a box, tracker mapping is broken", m.counts["duplicate_box_frames"])
           if stopped:
             interrupted = True
             break

@@ -1,3 +1,4 @@
+import inspect
 from types import SimpleNamespace
 import numpy as np
 from percival.contracts import Observation
@@ -28,11 +29,24 @@ def assign(rows, row_cls, dets, det_cls, min_iou=MIN_MATCH_IOU):
     out[int(i)] = int(j)
   return out
 
+class Detections:
+  def __init__(self, conf, xywh, cls):
+    self.conf, self.xywh, self.cls = conf, xywh, cls
+
+  def __len__(self): return len(self.conf)
+  def __getitem__(self, mask): return Detections(self.conf[mask], self.xywh[mask], self.cls[mask])
+
+  @property
+  def xyxy(self):
+    half = self.xywh[:, 2:4] / 2
+    return np.concatenate([self.xywh[:, :2] - half, self.xywh[:, :2] + half], axis=1)
+
 class Tracker:
-  def __init__(self, cfg, version, frame_rate):
+  def __init__(self, cfg, version, frame_rate=None):
     from ultralytics.trackers.byte_tracker import BYTETracker
     args = SimpleNamespace(track_high_thresh=cfg.track_high_thresh, track_low_thresh=cfg.track_low_thresh, new_track_thresh=cfg.new_track_thresh, track_buffer=cfg.track_buffer, match_thresh=cfg.match_thresh, fuse_score=True)
-    self.tracker = BYTETracker(args, frame_rate=max(1, int(round(frame_rate))))
+    legacy = "frame_rate" in inspect.signature(BYTETracker.__init__).parameters
+    self.tracker = BYTETracker(args, frame_rate=30) if legacy else BYTETracker(args)
     self.version = version
     self.last_dropped = 0
 
@@ -41,8 +55,7 @@ class Tracker:
     corners = np.array([[d.box[0], d.box[1], d.box[0] + d.box[2], d.box[1] + d.box[3]] for d in detections], dtype=np.float32).reshape(n, 4)
     centers = np.array([[d.box[0] + d.box[2] / 2, d.box[1] + d.box[3] / 2, d.box[2], d.box[3]] for d in detections], dtype=np.float32).reshape(n, 4)
     det_cls = np.array([d.class_id for d in detections], dtype=np.int64)
-
-    dets = SimpleNamespace(conf=np.array([d.confidence for d in detections], dtype=np.float32), xywh=centers, cls=det_cls.astype(np.float32))
+    dets = Detections(np.array([d.confidence for d in detections], dtype=np.float32), centers, det_cls.astype(np.float32))
     tracked = np.asarray(self.tracker.update(dets), dtype=np.float32)
 
     if tracked.size == 0:

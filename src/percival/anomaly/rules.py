@@ -43,7 +43,7 @@ def window(track, now, seconds):
   return out
 
 def spread(points):
-  c = np.array([center(p) for p in points])
+  c = np.array([center(p.box) for p in points])
   return float(np.linalg.norm(c - np.median(c, axis=0), axis=1).max()), c
 
 def speed(points):
