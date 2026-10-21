@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from percival.contracts import Anomaly
 from .rules import RULES, RuleInput
 
@@ -34,7 +34,7 @@ class AnomalyEngine:
 
     live, seen = self.frames > c.warmup_frames, set()
     inp = RuleInput(frame, observations, tracks)
-    
+
     for rule in self.rules:
       for key, trig in rule.check(inp).items():
         if not live or trig.confidence < c.min_confidence: continue
@@ -51,11 +51,12 @@ class AnomalyEngine:
 
   def _apply(self, k, kind, trig, frame):
     e = self.events.get(k)
-    
+
     if e is None:
-      self.events[k] = ActiveEvent(kind, frame.timestamp_s, frame.timestamp_s, frame.sample_index, frame.sample_index, trig.confidence, sorted(trig.track_ids), sorted(trig.class_names), trig.box, trig.details)
+      start_s, start_i = (frame.timestamp_s, frame.sample_index) if trig.since is None else (min(frame.timestamp_s, trig.since), min(frame.sample_index, trig.since_index))
+      self.events[k] = ActiveEvent(kind, start_s, frame.timestamp_s, start_i, frame.sample_index, trig.confidence, sorted(trig.track_ids), sorted(trig.class_names), trig.box, trig.details)
       return
-    
+
     e.last_s, e.last_index = frame.timestamp_s, frame.sample_index
     e.confidence = max(e.confidence, trig.confidence)
     e.track_ids = sorted(set(e.track_ids) | set(trig.track_ids))

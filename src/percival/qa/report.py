@@ -135,8 +135,7 @@ def render(rep):
     out += ["", f"== {c['clip_id']}  [{c['status']}]", f"  {c['duration_s']}s at {c['effective_fps']} fps, {c['frames']} frames", f"  objects per frame: mean {c['objects_per_frame_mean']}, max {c['objects_per_frame_max']}; frames with objects: {c['frames_with_observations']}", f"  tracks {c['tracks']} (median {c['median_track_points']} points), tracklets {c['tracklets']}, orphan observations {'n/a' if c['orphan_observations'] is None else c['orphan_observations']}",
             f"  motion: {c['motion']['candidates']} candidates in {c['motion']['frames_with_changes']} frames, {c['motion']['frames_motion_without_detection']} of them with no detection"]
     if c["avg_ms_per_frame"]: out.append("  ms per frame: " + ", ".join(f"{k} {v}" for k, v in c["avg_ms_per_frame"].items()) + "  | time share: " + ", ".join(f"{k} {int(v * 100)}%" for k, v in c["time_share"].items()))
-
-    for a in c["anomalies"]: out.append(f"  anomaly: {a['kind']} {a['start_s']}s to {a['end_s']}s, confidence {a['confidence']}, {a['tracks']} tracks")
+    for a in c["anomalies"]: out.append(f"  anomaly: {a['kind']} {a['start_s']}s to {a['end_s']}s, confidence {a['confidence']}, {a['tracks']} tracks | " + ", ".join(f"{k}={v}" for k, v in list(a["details"].items())[:6]))
     out += [f"  [{f['level']}] {f['msg']}" for f in c["flags"]]
   return "\n".join(out)
 
