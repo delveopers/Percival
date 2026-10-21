@@ -61,12 +61,34 @@ def test_runner_among_walkers_is_a_speed_outlier():
   out, _ = run(scene, 100, crowd_count=10)
   speed = [a for a in out if a.kind == "speed_outlier"]
   assert speed and all(a.track_ids == [9] for a in speed) and speed[0].details["zscore"] >= 3
+  assert 6.4 <= speed[0].start_s <= 6.7 and speed[0].details["sustained_s"] >= 1.0
 
-def test_crowd_needs_enough_people():
-  out, _ = run(lambda i: [(k, "person", (100 * k, 100, 40, 100)) for k in range(1, 5)], 20)
-  assert kinds(out) == ["crowd"] and out[0].details["count"] == 4
-  out, _ = run(lambda i: [(k, "person", (100 * k, 100, 40, 100)) for k in range(1, 3)], 20)
+def people(n): return [(k, "person", (100 * k, 100, 40, 100)) for k in range(1, n + 1)]
+
+def test_steady_crowd_is_baseline_not_an_anomaly():
+  out, _ = run(lambda i: people(10), 100, crowd_count=8)
   assert not out
+
+def test_sudden_surge_is_flagged_from_its_onset():
+  out, _ = run(lambda i: people(5 if i < 60 else 15), 100, crowd_count=8)
+  assert kinds(out) == ["crowd"] and len(out) == 1
+  assert 6.0 <= out[0].start_s <= 6.1 and out[0].details["count"] == 15 and abs(out[0].details["baseline"] - 5) < 1
+
+def test_small_increase_is_not_a_surge():
+  out, _ = run(lambda i: people(10 if i < 60 else 12), 100, crowd_count=8)
+  assert not out
+
+def test_surge_ends_when_baseline_adapts_to_the_new_normal():
+  out, _ = run(lambda i: people(5 if i < 60 else 15), 300, crowd_count=8, crowd_baseline_seconds=2)
+  assert kinds(out) == ["crowd"] and out[0].end_s < 12
+
+def test_brief_speed_burst_is_ignored():
+  def scene(i):
+    s = [(k, "person", (i * 15 + k * 500, 50 + k * 150, 40, 100)) for k in (1, 2, 3)]
+    x = 15 * i if i < 60 else 900 + 80 * (i - 60) if i < 65 else 1300 + 15 * (i - 65)
+    return s + [(9, "person", (x, 900, 40, 100))]
+  out, _ = run(scene, 100)
+  assert not [a for a in out if a.kind == "speed_outlier"]
 
 def test_scene_change_pauses_open_events():
   out, e = run(car, 130, flags=lambda i: 80 <= i < 100, finish=False)
@@ -75,3 +97,12 @@ def test_scene_change_pauses_open_events():
 def test_event_closes_after_cooldown_when_object_leaves():
   out, e = run(lambda i: car(i) if i < 70 else [], 100, finish=False)
   assert len(out) == 1 and out[0].end_s < 7.1 and not e.active
+
+def test_sustained_surge_stays_flagged_inside_the_baseline_window():
+  out, e = run(lambda i: people(5 if i < 60 else 15), 200, crowd_count=8, finish=False)
+  assert out == [] and len(e.active) == 1 and e.active[0].end_s >= 19.8
+
+def test_count_hovering_near_the_threshold_does_not_break_a_surge():
+  scene = lambda i: people(5 if i < 60 else 8 if (i - 60) % 8 == 7 else 12)
+  out, _ = run(scene, 120, crowd_count=6)
+  assert kinds(out) == ["crowd"] and len(out) == 1 and 6.0 <= out[0].start_s <= 6.1 and out[0].end_s >= 11.5
