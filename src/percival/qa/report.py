@@ -73,6 +73,7 @@ def clip_report(entry, cfg, obs, trk, ang, chg):
     by_track[o["track_id"]].append(o)
 
   per_frame = [len(v) for v in by_frame.values()]
+  series = [len(by_frame.get(i, [])) for i in range(frames)]
   dup_frames = sum(1 for v in by_frame.values() if len(v) > 1 and len({tuple(round(x, 1) for x in r["box"]) for r in v}) < len(v))
   expected = counts.get("observations", counts.get("observation"))
   consistent = expected is None or expected == len(obs)
@@ -83,8 +84,7 @@ def clip_report(entry, cfg, obs, trk, ang, chg):
   anomalies = [{"kind": a["kind"], "start_s": a["start_s"], "end_s": a["end_s"], "confidence": round(a["confidence"], 3), "tracks": len(a["track_ids"]), "at_warmup_end": a["start_index"] == cfg["anomaly"]["warmup_frames"], "at_clip_end": a["end_index"] >= frames - 1, "details": a["details"]} for a in ang]
   seconds = entry.get("seconds", {})
   total = sum(seconds.values()) or 1
-
-  r = {"clip_id": entry["clip_id"], "frames": frames, "effective_fps": fps, "duration_s": round(frames / fps, 1), "observations": len(obs), "frames_with_observations": len(by_frame), "objects_per_frame_mean": round(st.mean(per_frame), 1) if per_frame else 0, "objects_per_frame_max": max(per_frame, default=0),
+  r = {"clip_id": entry["clip_id"], "frames": frames, "effective_fps": fps, "duration_s": round(frames / fps, 1), "observations": len(obs), "frames_with_observations": len(by_frame), "objects_per_frame_mean": round(st.mean(per_frame), 1) if per_frame else 0, "objects_per_frame_max": max(per_frame, default=0), "objects_first_last": [series[:5], series[-5:]],
        "duplicate_box_frames": dup_frames, "tracks": len(tracks), "tracklets": len(trk), "orphan_observations": len(obs) - tracklet_points if consistent else None,
        "tracks_short": sum(t["n"] < cfg["tracking"]["min_track_length"] for t in tracks), "tracks_low_coverage": [t["track_id"] for t in tracks if t["coverage"] < MIN_COVERAGE], "tracks_big_gap": [[t["track_id"], t["max_gap"]] for t in tracks if t["max_gap"] > BIG_GAP], "tracks_hopping": [[t["track_id"], round(t["max_hop"], 2)] for t in tracks if t["max_hop"] > JUMP_PER_FRAME] if geo else [],
        "duplicate_track_pairs": duplicate_pairs(by_frame) if geo else [], "possible_fragments": fragments(tracks) if geo else [], "median_track_points": st.median([t["n"] for t in tracks]) if tracks else 0,
@@ -132,7 +132,7 @@ def render(rep):
   for s in rep["not_completed"]: out.append(f"{s['clip_id'][:40]:40} not completed: {s['status']} {s['error'] or ''}")
 
   for c in rep["clips"]:
-    out += ["", f"== {c['clip_id']}  [{c['status']}]", f"  {c['duration_s']}s at {c['effective_fps']} fps, {c['frames']} frames", f"  objects per frame: mean {c['objects_per_frame_mean']}, max {c['objects_per_frame_max']}; frames with objects: {c['frames_with_observations']}", f"  tracks {c['tracks']} (median {c['median_track_points']} points), tracklets {c['tracklets']}, orphan observations {'n/a' if c['orphan_observations'] is None else c['orphan_observations']}",
+    out += ["", f"== {c['clip_id']}  [{c['status']}]", f"  {c['duration_s']}s at {c['effective_fps']} fps, {c['frames']} frames", f"  objects per frame: mean {c['objects_per_frame_mean']}, max {c['objects_per_frame_max']}; frames with objects: {c['frames_with_observations']}", f"  objects in first 5 / last 5 frames: {c['objects_first_last'][0]} / {c['objects_first_last'][1]}", f"  tracks {c['tracks']} (median {c['median_track_points']} points), tracklets {c['tracklets']}, orphan observations {'n/a' if c['orphan_observations'] is None else c['orphan_observations']}",
             f"  motion: {c['motion']['candidates']} candidates in {c['motion']['frames_with_changes']} frames, {c['motion']['frames_motion_without_detection']} of them with no detection"]
     if c["avg_ms_per_frame"]: out.append("  ms per frame: " + ", ".join(f"{k} {v}" for k, v in c["avg_ms_per_frame"].items()) + "  | time share: " + ", ".join(f"{k} {int(v * 100)}%" for k, v in c["time_share"].items()))
     for a in c["anomalies"]: out.append(f"  anomaly: {a['kind']} {a['start_s']}s to {a['end_s']}s, confidence {a['confidence']}, {a['tracks']} tracks | " + ", ".join(f"{k}={v}" for k, v in list(a["details"].items())[:6]))

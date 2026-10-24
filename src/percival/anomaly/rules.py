@@ -119,8 +119,8 @@ class LoiterRule:
       sz = median_size(pts)
       limit = max(c.loiter_radius * sz, 1e-6)
       path = path_length(cs)
-      if sp > limit or path < sz: continue
-      details = {"duration_s": rnd(pts[-1].timestamp_s - pts[0].timestamp_s), "spread_px": rnd(sp), "limit_px": rnd(limit), "path_px": rnd(path)}
+      if sp > limit or sp < c.loiter_min_spread * sz: continue
+      details = {"duration_s": rnd(pts[-1].timestamp_s - pts[0].timestamp_s), "spread_px": rnd(sp), "limit_px": rnd(limit), "min_spread_px": rnd(c.loiter_min_spread * sz), "path_px": rnd(path)}
       out[t.track_id] = Trigger(confidence(mean_conf(pts), 1 - sp / limit), [t.track_id], [label(t)], pts[-1].box, details)
     return out
 

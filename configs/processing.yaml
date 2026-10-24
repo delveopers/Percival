@@ -37,6 +37,7 @@ anomaly:
   cooldown_seconds: 5.0
   stationary_radius: 0.25
   loiter_radius: 3.0
+  loiter_min_spread: 0.5
   owner_distance: 1.5
   stationary_classes: [car, bus, truck, motorcycle, bicycle]
   abandoned_classes: [backpack, handbag, suitcase]
