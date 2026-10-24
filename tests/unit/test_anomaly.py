@@ -47,8 +47,16 @@ def test_bag_with_owner_nearby_is_not_abandoned():
   assert not out
 
 def test_pacing_person_is_loitering():
-  out, _ = run(lambda i: [(1, "person", (100 + 60 * abs(math.sin(i * 0.2)), 100, 40, 120))], 120)
-  assert kinds(out) == ["loitering"]
+  out, _ = run(lambda i: [(1, "person", (100 + 200 * abs(math.sin(i * 0.2)), 100, 40, 120))], 120)
+  assert kinds(out) == ["loitering"] and out[0].details["min_spread_px"] == 60.0
+
+def test_person_standing_still_with_box_jitter_is_not_loitering():
+  out, _ = run(lambda i: [(1, "person", (100 + 3 * (i % 2), 100 + 2 * (i % 3), 40, 120))], 150)
+  assert not out
+
+def test_small_sway_below_the_minimum_spread_is_not_loitering():
+  out, _ = run(lambda i: [(1, "person", (100 + 40 * abs(math.sin(i * 0.2)), 100, 40, 120))], 120)
+  assert not out
 
 def test_person_walking_through_is_not_loitering():
   out, _ = run(lambda i: [(1, "person", (i * 10, 100, 40, 120))], 120)
