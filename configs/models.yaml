@@ -11,7 +11,7 @@ tracker:
   name: bytetrack
   track_high_thresh: 0.4
   track_low_thresh: 0.1
-  new_track_thresh: 0.4
+  new_track_thresh: 0.55
   track_buffer: 30
   match_thresh: 0.8
 version:
