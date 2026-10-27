@@ -59,7 +59,7 @@ def duplicate_pairs(frames):
 
 def unreachable(cfg, frames, fps):
   a, duration = cfg["anomaly"], frames / fps
-  warm = a["warmup_frames"] / fps
+  warm = a["warmup_seconds"]
   need = {"stationary": a["stationary_seconds"], "abandoned": a["stationary_seconds"], "loitering": a["loitering_seconds"], "crowd": a["crowd_min_seconds"], "speed": 0}
   return [f"{r}: needs {max(s, warm):.1f}s (rule {s}s, warm-up {warm:.1f}s) but the clip is {duration:.1f}s" for r, s in need.items() if r in a["rules"] and duration < max(s, warm)]
 
@@ -81,7 +81,7 @@ def clip_report(entry, cfg, obs, trk, ang, chg):
   tracks = [track_stats(v) for v in by_track.values()]
   chg_frames = {c["sample_index"] for c in chg}
   tracklet_points = sum(len(t["points"]) for t in trk)
-  anomalies = [{"kind": a["kind"], "start_s": a["start_s"], "end_s": a["end_s"], "confidence": round(a["confidence"], 3), "tracks": len(a["track_ids"]), "at_warmup_end": a["start_index"] == cfg["anomaly"]["warmup_frames"], "at_clip_end": a["end_index"] >= frames - 1, "details": a["details"]} for a in ang]
+  anomalies = [{"kind": a["kind"], "start_s": a["start_s"], "end_s": a["end_s"], "confidence": round(a["confidence"], 3), "tracks": len(a["track_ids"]), "at_warmup_end": 0 <= a["start_s"] - cfg["anomaly"]["warmup_seconds"] <= 1.5 / fps, "at_clip_end": a["end_index"] >= frames - 1, "details": a["details"]} for a in ang]
   seconds = entry.get("seconds", {})
   total = sum(seconds.values()) or 1
   r = {"clip_id": entry["clip_id"], "frames": frames, "effective_fps": fps, "duration_s": round(frames / fps, 1), "observations": len(obs), "frames_with_observations": len(by_frame), "objects_per_frame_mean": round(st.mean(per_frame), 1) if per_frame else 0, "objects_per_frame_max": max(per_frame, default=0), "objects_first_last": [series[:5], series[-5:]],
