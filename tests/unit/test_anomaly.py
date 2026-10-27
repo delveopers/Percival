@@ -5,17 +5,18 @@ from percival.contracts import Frame, Observation
 from percival.tracking import TrackletBuilder
 from percival.anomaly import AnomalyEngine
 
-CFG = dict(stationary_seconds=5, loitering_seconds=8, warmup_frames=0, cooldown_seconds=1, crowd_count=3, crowd_min_seconds=1, min_confidence=0.3, owner_absent_seconds=3, speed_min_samples=20, speed_zscore=3)
+CFG = dict(stationary_seconds=5, loitering_seconds=8, warmup_seconds=0, cooldown_seconds=1, crowd_count=3, crowd_min_seconds=1, min_confidence=0.3, owner_absent_seconds=3, speed_min_samples=20, speed_zscore=3)
 
 def ob(i, tid, cls, box, conf=0.9):
   return Observation(run_id="r", clip_id="c", source_index=i * 2, sample_index=i, timestamp_s=i * 0.1, box=box, class_id=0, class_name=cls, confidence=conf, detector_version="v", track_id=tid, tracker_version="v")
 
-def run(scene, n, flags=lambda i: False, finish=True, **over):
+def run(scene, n, flags=lambda i: False, finish=True, dets=None, **over):
   b, e, out = TrackletBuilder(TrackingCfg(max_lost_frames=30, min_track_length=3)), AnomalyEngine(AnomalyCfg(**{**CFG, **over}), "r", "c"), []
   for i in range(n):
     obs = [] if flags(i) else [ob(i, *s) for s in scene(i)]
     b.update(obs, i)
-    out += e.update(Frame("r", "c", i * 2, i, i * 0.1, np.zeros((1, 1, 3), np.uint8), 1.0), obs, b.tracks, flags(i))
+    raw = None if dets is None else [ob(i, *d) for d in dets(i)]
+    out += e.update(Frame("r", "c", i * 2, i, i * 0.1, np.zeros((1, 1, 3), np.uint8), 1.0), obs, b.tracks, flags(i), raw)
   if finish: out += e.finish()
   return out, e
 
@@ -32,7 +33,7 @@ def test_moving_car_is_not_stationary():
   assert not out
 
 def test_warmup_suppresses_events():
-  out, _ = run(car, 80, warmup_frames=1000)
+  out, _ = run(car, 80, warmup_seconds=1000)
   assert not out
 
 def abandoned(stay):
@@ -114,3 +115,14 @@ def test_count_hovering_near_the_threshold_does_not_break_a_surge():
   scene = lambda i: people(5 if i < 60 else 8 if (i - 60) % 8 == 7 else 12)
   out, _ = run(scene, 120, crowd_count=6)
   assert kinds(out) == ["crowd"] and len(out) == 1 and 6.0 <= out[0].start_s <= 6.1 and out[0].end_s >= 11.5
+
+def test_crowd_counts_raw_detections_not_tracked_objects():
+  tracked = lambda i: people(5)
+  raw = lambda i: people(5 if i < 60 else 15)
+  out, _ = run(tracked, 100, dets=raw, crowd_count=8)
+  assert kinds(out) == ["crowd"] and out[0].details["count"] == 15 and 6.0 <= out[0].start_s <= 6.1
+
+def test_weak_detections_below_the_crowd_confidence_are_not_counted():
+  weak = lambda i: [(k, "person", (100 * k, 100, 40, 100), 0.2) for k in range(1, 6 if i < 60 else 16)]
+  out, _ = run(lambda i: people(5), 100, dets=weak, crowd_count=8)
+  assert not out
