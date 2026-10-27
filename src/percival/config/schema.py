@@ -31,6 +31,7 @@ class OutputCfg(Section):
   save_observations: bool = True
   observations_format: Literal["jsonl"] = "jsonl"
   show_window: bool = False
+  save_detections: bool = True
 
 class IngestionCfg(Section):
   sample_every_n_frames: int = Field(2, ge=1)
@@ -76,7 +77,7 @@ class AnomalyCfg(Section):
   loitering_seconds: float = Field(30, gt=0)
   speed_zscore: float = Field(3.0, gt=0)
   crowd_count: int = Field(8, ge=1)
-  warmup_frames: int = Field(150, ge=0)
+  warmup_seconds: float = Field(12.0, ge=0)
   min_confidence: float = Field(0.5, ge=0, le=1)
   stationary_radius: float = Field(0.25, gt=0)
   loiter_radius: float = Field(3.0, gt=0)
@@ -90,6 +91,7 @@ class AnomalyCfg(Section):
   crowd_zscore: float = Field(3.0, gt=0)
   crowd_min_increase: int = Field(4, ge=1)
   crowd_baseline_seconds: float = Field(30, gt=0)
+  crowd_min_confidence: float = Field(0.3, ge=0, le=1)
   stationary_classes: tuple[str, ...] = ("car", "bus", "truck", "motorcycle", "bicycle")
   abandoned_classes: tuple[str, ...] = ("backpack", "handbag", "suitcase")
   loiter_classes: tuple[str, ...] = ("person",)

@@ -1,11 +1,8 @@
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional, Literal, Any
-from pydantic import BaseModel, ConfigDict
+from pathlib import Path
+from typing import Any, Literal, Optional
 import numpy as np
-
-Box = tuple[float, float, float, float]
-AnomalyKind = Literal["stationary_object", "abandoned_object", "loitering", "speed_outlier", "crowd"]
+from pydantic import BaseModel, ConfigDict
 
 class ClipInfo(BaseModel):
   model_config = ConfigDict(frozen=True)
@@ -39,18 +36,30 @@ class MotionResult:
   changed_fraction: float
   diff_map: Optional[np.ndarray] = None
 
+Box = tuple[float, float, float, float]
+
 class Detection(BaseModel):
   model_config = ConfigDict(frozen=True)
   run_id: str; clip_id: str
   source_index: int; sample_index: int
   timestamp_s: float
   box: Box
-  class_id: int; class_name: str
-  confidence: float; detector_version: str
+  class_id: int
+  class_name: str
+  confidence: float
+  detector_version: str
 
 class Observation(Detection):
   track_id: int
   tracker_version: str
+
+class FrameMeta(BaseModel):
+  model_config = ConfigDict(frozen=True)
+  run_id: str; clip_id: str
+  sample_index: int; source_index: int
+  timestamp_s: float
+  scene_change: bool
+  detections: int
 
 class TrackPoint(BaseModel):
   model_config = ConfigDict(frozen=True)
@@ -70,6 +79,8 @@ class Tracklet(BaseModel):
   points: list[TrackPoint]
   detector_version: str; tracker_version: str
 
+AnomalyKind = Literal["stationary_object", "abandoned_object", "loitering", "speed_outlier", "crowd"]
+
 class Anomaly(BaseModel):
   model_config = ConfigDict(frozen=True)
   run_id: str; clip_id: str
@@ -86,5 +97,5 @@ class Anomaly(BaseModel):
 class FrameContext:
   frame: Frame
   motion: Optional[MotionResult] = None
-  observation: list = field(default_factory=list)
+  observations: list = field(default_factory=list)
   anomalies: list = field(default_factory=list)
