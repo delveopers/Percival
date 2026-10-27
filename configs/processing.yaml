@@ -24,7 +24,7 @@ anomaly:
   stationary_seconds: 8
   loitering_seconds: 12
   owner_absent_seconds: 5
-  warmup_frames: 50
+  warmup_seconds: 4
   min_confidence: 0.35
   speed_zscore: 3.0
   speed_min_samples: 50
@@ -33,6 +33,7 @@ anomaly:
   crowd_zscore: 3.0
   crowd_min_increase: 4
   crowd_baseline_seconds: 30
+  crowd_min_confidence: 0.3
   crowd_min_seconds: 2.0
   cooldown_seconds: 5.0
   stationary_radius: 0.25

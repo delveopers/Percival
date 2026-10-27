@@ -23,6 +23,7 @@ class RuleInput:
   frame: Frame
   observations: list
   tracks: dict
+  detections: list = None
 
 def center(box): return (box[0] + box[2] / 2, box[1] + box[3] / 2)
 def size(box): return max(box[2], box[3])
@@ -172,7 +173,9 @@ class CrowdRule:
 
   def check(self, inp):
     c, now = self.cfg, inp.frame.timestamp_s
-    members = [o for o in inp.observations if o.class_name in c.crowd_classes]
+    source = inp.observations if inp.detections is None else inp.detections
+    members = [o for o in source if o.class_name in c.crowd_classes and o.confidence >= c.crowd_min_confidence]
+    ids = sorted(o.track_id for o in inp.observations if o.class_name in c.crowd_classes)
     n = len(members)
     mean, sigma, z, surge = self.mean, 0.0, 0.0, False
 
@@ -195,8 +198,7 @@ class CrowdRule:
     x1, y1 = min(o.box[0] for o in members), min(o.box[1] for o in members)
     x2, y2 = max(o.box[0] + o.box[2] for o in members), max(o.box[1] + o.box[3] for o in members)
     details = {"count": n, "baseline": rnd(mean), "sigma": rnd(sigma), "zscore": rnd(z), "threshold": c.crowd_zscore, "sustained_s": rnd(now - self.since[0])}
-    trigger = Trigger(confidence(float(np.mean([o.confidence for o in members])), (z - c.crowd_zscore) / c.crowd_zscore), [o.track_id for o in members], sorted({o.class_name for o in members}), (x1, y1, x2 - x1, y2 - y1), details, self.since[0], self.since[1])
-
+    trigger = Trigger(confidence(float(np.mean([o.confidence for o in members])), (z - c.crowd_zscore) / c.crowd_zscore), ids, sorted({o.class_name for o in members}), (x1, y1, x2 - x1, y2 - y1), details, self.since[0], self.since[1])
     return {"scene": trigger}
 
   def _learn(self, n, now, frozen):
