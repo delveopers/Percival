@@ -80,11 +80,16 @@ class AnomalyCfg(Section):
   min_confidence: float = Field(0.5, ge=0, le=1)
   stationary_radius: float = Field(0.25, gt=0)
   loiter_radius: float = Field(3.0, gt=0)
+  loiter_min_spread: float = Field(0.5, ge=0)
   owner_distance: float = Field(1.5, gt=0)
   owner_absent_seconds: float = Field(10, gt=0)
   crowd_min_seconds: float = Field(2.0, ge=0)
   cooldown_seconds: float = Field(5.0, ge=0)
   speed_min_samples: int = Field(50, ge=2)
+  speed_min_seconds: float = Field(1.0, ge=0)
+  crowd_zscore: float = Field(3.0, gt=0)
+  crowd_min_increase: int = Field(4, ge=1)
+  crowd_baseline_seconds: float = Field(30, gt=0)
   stationary_classes: tuple[str, ...] = ("car", "bus", "truck", "motorcycle", "bicycle")
   abandoned_classes: tuple[str, ...] = ("backpack", "handbag", "suitcase")
   loiter_classes: tuple[str, ...] = ("person",)
@@ -102,6 +107,7 @@ class AnomalyCfg(Section):
   def check_times(self):
     if self.loitering_seconds < self.stationary_seconds: raise ValueError("loitering_seconds must be >= stationary_seconds")
     if self.owner_absent_seconds > self.stationary_seconds: raise ValueError("owner_absent_seconds must be <= stationary_seconds")
+    if self.loiter_min_spread >= self.loiter_radius: raise ValueError("loiter_min_spread must be < loiter_radius")
     return self
 
 class DetectorCfg(Section):

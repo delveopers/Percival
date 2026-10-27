@@ -1,3 +1,4 @@
+import math
 from collections import deque
 from dataclasses import dataclass
 import numpy as np
@@ -14,6 +15,8 @@ class Trigger:
   class_names: list
   box: tuple
   details: dict
+  since: float = None
+  since_index: int = None
 
 @dataclass(slots=True)
 class RuleInput:
@@ -43,7 +46,7 @@ def window(track, now, seconds):
   return out
 
 def spread(points):
-  c = np.array([center(p) for p in points])
+  c = np.array([center(p.box) for p in points])
   return float(np.linalg.norm(c - np.median(c, axis=0), axis=1).max()), c
 
 def speed(points):
@@ -51,7 +54,7 @@ def speed(points):
   dt = np.diff([p.timestamp_s for p in points])
   step = np.linalg.norm(np.diff(c, axis=0), axis=1)
   sizes = np.array([size(p.box) for p in points[1:]])
-  # print(type(sizes), sizes)
+
   return float(np.median(step / np.maximum(dt, 1e-6) / np.maximum(sizes, 1e-6)))
 
 def still(inp, cfg, classes):
@@ -66,19 +69,13 @@ def still(inp, cfg, classes):
   return out
 
 def still_trigger(t, pts, sp, limit, extra=None):
-  details = {
-    "duration_s": rnd(pts[-1].timestamp_s - pts[0].timestamp_s),
-    "spread_px": rnd(sp),
-    "limit_px": rnd(limit),
-    **(extra or {})
-  }
-  return Trigger(confidence(mean_conf(pts), 1-sp/limit), [t.track_id], [label(t)], pts[-1].box, details)
+  details = {"duration_s": rnd(pts[-1].timestamp_s - pts[0].timestamp_s), "spread_px": rnd(sp), "limit_px": rnd(limit), **(extra or {})}
+  return Trigger(confidence(mean_conf(pts), 1 - sp / limit), [t.track_id], [label(t)], pts[-1].box, details)
 
 class StationaryRule:
   kind = "stationary_object"
 
-  def __init__(self, cfg):
-    self.cfg = cfg
+  def __init__(self, cfg): self.cfg = cfg
 
   def check(self, inp):
     return {t.track_id: still_trigger(t, pts, sp, limit) for t, pts, sp, limit in still(inp, self.cfg, self.cfg.stationary_classes)}
@@ -106,13 +103,12 @@ class AbandonedRule:
   def _owner_near(self, bx, by):
     d = self.cfg.owner_distance
     return any(np.hypot(px - bx, py - by) / max(h, 1e-6) <= d for _, people in self.people for px, py, h in people)
-  
+
 class LoiterRule:
   kind = "loitering"
 
-  def __init__(self, cfg):
-    self.cfg = cfg
-  
+  def __init__(self, cfg): self.cfg = cfg
+
   def check(self, inp):
     c, now, out = self.cfg, inp.frame.timestamp_s, {}
 
@@ -121,16 +117,10 @@ class LoiterRule:
       pts = window(t, now, c.loitering_seconds)
       sp, cs = spread(pts)
       sz = median_size(pts)
-      limit, path = max(c.loiter_radius * sz, 1e-6), path_length(cs)
-      
-      if sp > limit or path < sz: continue
-      details = {
-        "duration_s": rnd(pts[-1].timestamp_s - pts[0].timestamp_s),
-        "spread_px": rnd(sp),
-        "limit_px": rnd(limit),
-        "path_px": rnd(path)
-      }
-
+      limit = max(c.loiter_radius * sz, 1e-6)
+      path = path_length(cs)
+      if sp > limit or sp < c.loiter_min_spread * sz: continue
+      details = {"duration_s": rnd(pts[-1].timestamp_s - pts[0].timestamp_s), "spread_px": rnd(sp), "limit_px": rnd(limit), "min_spread_px": rnd(c.loiter_min_spread * sz), "path_px": rnd(path)}
       out[t.track_id] = Trigger(confidence(mean_conf(pts), 1 - sp / limit), [t.track_id], [label(t)], pts[-1].box, details)
     return out
 
@@ -140,27 +130,30 @@ class SpeedRule:
   def __init__(self, cfg):
     self.cfg = cfg
     self.stats = {}
+    self.since = {}
 
   def check(self, inp):
-    c, out, updates = self.cfg, {}, []
+    c, now, idx = self.cfg, inp.frame.timestamp_s, inp.frame.sample_index
+    out, updates, live = {}, [], set()
 
     for t in present(inp, c.speed_classes):
+      live.add(t.track_id)
       if len(t.points) < SPEED_POINTS: continue
       pts = t.points[-SPEED_POINTS:]
       v, name = speed(pts), label(t)
       n, mean, m2 = self.stats.get(name, (0, 0.0, 0.0))
-      z = (v - mean) / max(np.sqrt(m2 / (n-1)), STD_FLOOR) if n >= c.speed_min_samples else 0.0
-      
-      if z >= c.speed_zscore:
-        details = {
-          "speed": rnd(v),
-          "mean": rnd(mean),
-          "zscore": rnd(z),
-          "threshold": c.speed_zscore,
-          "unit": "box_sizes_per_s"
-        }
-        out[t.track_id] = Trigger(confidence(mean_conf(pts), (z - c.speed_zscore) / c.speed_zscore), [t.track_id], [name], pts[-1].box, details)
-      else: updates.append((name, v))
+      z = (v - mean) / max(np.sqrt(m2 / (n - 1)), STD_FLOOR) if n >= c.speed_min_samples else 0.0
+      if z < c.speed_zscore:
+        self.since.pop(t.track_id, None)
+        updates.append((name, v))
+        continue
+
+      start = self.since.setdefault(t.track_id, (now, idx))
+      if now - start[0] < c.speed_min_seconds: continue
+      details = {"speed": rnd(v), "mean": rnd(mean), "zscore": rnd(z), "threshold": c.speed_zscore, "sustained_s": rnd(now - start[0]), "unit": "box_sizes_per_s"}
+      out[t.track_id] = Trigger(confidence(mean_conf(pts), (z - c.speed_zscore) / c.speed_zscore), [t.track_id], [name], pts[-1].box, details, start[0], start[1])
+    for tid in [k for k in self.since if k not in live]: del self.since[tid]
+
     for name, v in updates:
       n, mean, m2 = self.stats.get(name, (0, 0.0, 0.0))
       n += 1
@@ -174,26 +167,48 @@ class CrowdRule:
 
   def __init__(self, cfg):
     self.cfg = cfg
-    self.since = None
+    self.mean = self.var = self.last = None
+    self.since = self.frozen = None
 
   def check(self, inp):
     c, now = self.cfg, inp.frame.timestamp_s
     members = [o for o in inp.observations if o.class_name in c.crowd_classes]
+    n = len(members)
+    mean, sigma, z, surge = self.mean, 0.0, 0.0, False
 
-    if len(members) < c.crowd_count:
+    if mean is not None:
+      sigma = max(math.sqrt(self.var), 0.5 * math.sqrt(max(mean, 1.0)), 1.0)
+      z = (n - mean) / sigma
+      enter = n >= c.crowd_count and z >= c.crowd_zscore and n - mean >= c.crowd_min_increase
+      stay = self.since is not None and n >= c.crowd_count and z >= c.crowd_zscore / 2 and n - mean >= c.crowd_min_increase / 2
+      surge = enter or stay
+    if surge and self.frozen is None: self.frozen = now
+    if not surge: self.frozen = None
+    self._learn(n, now, surge and now - self.frozen < c.crowd_baseline_seconds)
+
+    if not surge:
       self.since = None
       return {}
+    if self.since is None: self.since = (now, inp.frame.sample_index)
+    if now - self.since[0] < c.crowd_min_seconds: return {}
 
-    if self.since is None: self.since = now
-    if now - self.since < c.crowd_min_seconds: return {}
     x1, y1 = min(o.box[0] for o in members), min(o.box[1] for o in members)
     x2, y2 = max(o.box[0] + o.box[2] for o in members), max(o.box[1] + o.box[3] for o in members)
-    n = len(members)
-    details = {
-      "count": n,
-      "threshold": c.crowd_count,
-      "sustained_s": rnd(now - self.since)
-    }
-    return {"scene": Trigger(confidence(float(np.mean([o.confidence for o in members])), (n - c.crowd_count) / c.crowd_count), [o.track_id for o in members], sorted({o.class_name for o in members}), (x1, y1, x2 - x1, y2 - y1), details)}
+    details = {"count": n, "baseline": rnd(mean), "sigma": rnd(sigma), "zscore": rnd(z), "threshold": c.crowd_zscore, "sustained_s": rnd(now - self.since[0])}
+    trigger = Trigger(confidence(float(np.mean([o.confidence for o in members])), (z - c.crowd_zscore) / c.crowd_zscore), [o.track_id for o in members], sorted({o.class_name for o in members}), (x1, y1, x2 - x1, y2 - y1), details, self.since[0], self.since[1])
+
+    return {"scene": trigger}
+
+  def _learn(self, n, now, frozen):
+    if self.mean is None:
+      self.mean, self.var, self.last = float(n), 0.0, now
+      return
+
+    dt, self.last = max(now - self.last, 0.0), now
+    if frozen: return
+    alpha = 1 - math.exp(-dt / self.cfg.crowd_baseline_seconds)
+    d = n - self.mean
+    self.mean += alpha * d
+    self.var = (1 - alpha) * (self.var + alpha * d * d)
 
 RULES = {"stationary": StationaryRule, "abandoned": AbandonedRule, "loitering": LoiterRule, "speed": SpeedRule, "crowd": CrowdRule}

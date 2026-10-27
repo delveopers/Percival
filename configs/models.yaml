@@ -3,15 +3,15 @@ detector:
   weights: yolov8n.pt
   device: auto
   imgsz: 640
-  conf: 0.35
+  conf: 0.2
   iou: 0.5
   classes: [person, bicycle, car, motorcycle, bus, truck, backpack, handbag, suitcase]
   half: false
 tracker:
   name: bytetrack
-  track_high_thresh: 0.5
+  track_high_thresh: 0.4
   track_low_thresh: 0.1
-  new_track_thresh: 0.6
+  new_track_thresh: 0.55
   track_buffer: 30
   match_thresh: 0.8
 version:
