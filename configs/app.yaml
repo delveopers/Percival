@@ -13,5 +13,6 @@ logging:
 output:
   save_annotated_video: true
   save_observations: true
+  save_detections: true
   observations_format: jsonl
   show_window: false
