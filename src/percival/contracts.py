@@ -67,6 +67,16 @@ class TrackPoint(BaseModel):
   timestamp_s: float
   box: Box
   confidence: float
+  class_name: str = ""
+
+class TrackSegment(BaseModel):
+  model_config = ConfigDict(frozen=True)
+  run_id: str; clip_id: str
+  track_id: int
+  class_name: str
+  state: Literal["still", "moving"]
+  start_s: float; end_s: float
+  start_index: int; end_index: int
 
 class Tracklet(BaseModel):
   model_config = ConfigDict(frozen=True)
@@ -79,7 +89,7 @@ class Tracklet(BaseModel):
   points: list[TrackPoint]
   detector_version: str; tracker_version: str
 
-AnomalyKind = Literal["stationary_object", "abandoned_object", "loitering", "speed_outlier", "crowd"]
+AnomalyKind = Literal["stationary_object", "dwell", "abandoned_object", "loitering", "speed_outlier", "group", "crowd", "crowd_surge"]
 
 class Anomaly(BaseModel):
   model_config = ConfigDict(frozen=True)
