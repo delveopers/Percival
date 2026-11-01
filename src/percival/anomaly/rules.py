@@ -3,6 +3,7 @@ from collections import deque
 from dataclasses import dataclass
 import numpy as np
 from percival.contracts import Frame
+from .features import *
 
 OWNER_CLASS = "person"
 SPEED_POINTS = 6
@@ -24,39 +25,6 @@ class RuleInput:
   observations: list
   tracks: dict
   detections: list = None
-
-def center(box): return (box[0] + box[2] / 2, box[1] + box[3] / 2)
-def size(box): return max(box[2], box[3])
-def rnd(v): return round(float(v), 2)
-def label(t): return t.votes.most_common(1)[0][0]
-def confidence(base, margin): return float(base * (0.7 + 0.3 * min(1.0, max(0.0, margin))))
-def mean_conf(points): return float(np.mean([p.confidence for p in points]))
-def median_size(points): return float(np.median([size(p.box) for p in points]))
-def path_length(c): return float(np.linalg.norm(np.diff(c, axis=0), axis=1).sum())
-
-def present(inp, classes):
-  i = inp.frame.sample_index
-  return [t for t in inp.tracks.values() if t.last_index == i and label(t) in classes]
-
-def window(track, now, seconds):
-  out = []
-  for p in reversed(track.points):
-    if p.timestamp_s < now - seconds: break
-    out.append(p)
-  out.reverse()
-  return out
-
-def spread(points):
-  c = np.array([center(p.box) for p in points])
-  return float(np.linalg.norm(c - np.median(c, axis=0), axis=1).max()), c
-
-def speed(points):
-  c = np.array([center(p.box) for p in points])
-  dt = np.diff([p.timestamp_s for p in points])
-  step = np.linalg.norm(np.diff(c, axis=0), axis=1)
-  sizes = np.array([size(p.box) for p in points[1:]])
-
-  return float(np.median(step / np.maximum(dt, 1e-6) / np.maximum(sizes, 1e-6)))
 
 def still(inp, cfg, classes):
   now, out = inp.frame.timestamp_s, []
