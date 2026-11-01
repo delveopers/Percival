@@ -23,7 +23,7 @@ def draw_anomalies(img, anomalies):
 
 def compose(ctx, heatmap_alpha):
   out = annotate(ctx.frame, ctx.motion, heatmap_alpha) if ctx.motion is not None else ctx.frame.image.copy()
-  draw_observations(out, ctx.observation)
+  draw_observations(out, ctx.observations)
   draw_anomalies(out, ctx.anomalies)
-  cv2.putText(out, f"{ctx.frame.timestamp_s:6.1f}s  objects:{len(ctx.observation)}  anomalies:{len(ctx.anomalies)}", (10, out.shape[0] - 10), FONT, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+  cv2.putText(out, f"{ctx.frame.timestamp_s:6.1f}s  objects:{len(ctx.observations)}  anomalies:{len(ctx.anomalies)}", (10, out.shape[0] - 10), FONT, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
   return out

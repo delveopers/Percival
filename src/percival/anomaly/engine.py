@@ -18,23 +18,20 @@ class AnomalyEngine:
     self.cfg, self.run_id, self.clip_id = cfg, run_id, clip_id
     self.rules = [RULES[n](cfg) for n in cfg.rules]
     self.events = {}
-    self.frames = 0
+    self.start = None
 
   @property
   def active(self):
     return [self._anomaly(e) for e in self.events.values()]
 
-  def update(self, frame, observations, tracks, scene_change=False):
+  def update(self, frame, observations, tracks, scene_change=False, detections=None):
     c, now = self.cfg, frame.timestamp_s
-    self.frames += 1
-
+    if self.start is None: self.start = now
     if scene_change:
       for e in self.events.values(): e.last_s = now
       return []
-
-    live, seen = self.frames > c.warmup_frames, set()
-    inp = RuleInput(frame, observations, tracks)
-
+    live, seen = now - self.start >= c.warmup_seconds - 1e-9, set()
+    inp = RuleInput(frame, observations, tracks, detections)
     for rule in self.rules:
       for key, trig in rule.check(inp).items():
         if not live or trig.confidence < c.min_confidence: continue

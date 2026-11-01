@@ -8,9 +8,19 @@ DEFAULT_FPS = 30.0
 class NoClipsError(RuntimeError): pass
 
 def discover(input_dir, extensions, recursive):
-  if not input_dir.is_dir(): raise NoClipsError(f"input directory not found: {input_dir}")
+  if not input_dir.is_dir():
+    raise NoClipsError(f"input directory not found: {input_dir}")
+
   it = input_dir.rglob("*") if recursive else input_dir.glob("*")
-  return sorted(p for p in it if p.is_file() and not p.name.startswith(".") and p.suffix.lower() in extensions and p.stat().st_size > 0)
+  files = (
+    p for p in it
+    if p.is_file()
+    and not p.name.startswith(".")
+    and p.suffix.lower() in extensions
+    and p.stat().st_size > 0
+  )
+
+  return sorted(files, key=lambda p: (str(p).lower(), str(p)))
 
 def make_clip_id(path, root):
   return "__".join(path.relative_to(root).with_suffix("").parts)

@@ -24,7 +24,7 @@ anomaly:
   stationary_seconds: 8
   loitering_seconds: 12
   owner_absent_seconds: 5
-  warmup_frames: 50
+  warmup_frames: 20
   min_confidence: 0.35
   speed_zscore: 3.0
   speed_min_samples: 50
