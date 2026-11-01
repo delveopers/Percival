@@ -9,8 +9,7 @@ def mean_conf(points): return float(np.mean([p.confidence for p in points]))
 def median_size(points): return float(np.median([size(p.box) for p in points]))
 def path_length(c): return float(np.linalg.norm(np.diff(c, axis=0), axis=1).sum())
 
-
-def label(t): return t.votes.most_common(1)[0][0] if t.recent else t.votes.most_common(1)[0][0]
+def label(t): return Counter(t.recent).most_common(1)[0][0] if t.recent else t.votes.most_common(1)[0][0]
 
 def radius_for(cfg, name): return cfg.dwell_radius if name in cfg.dwell_classes else cfg.stationary_radius
 def still_limit(cfg, name, size_px): return max(radius_for(cfg, name) * size_px, cfg.still_min_px)
@@ -23,22 +22,21 @@ def window(track, now, seconds):
   out.reverse()
   return out
 
-def spread(points):
+def spread(points, q=90):
   c = np.array([center(p.box) for p in points])
-  return float(np.linalg.norm(c - np.median(c, axis=0), axis=1).max()), c
+  return float(np.percentile(np.linalg.norm(c - np.median(c, axis=0), axis=1), q)), c
 
 def speed(points):
   c = np.array([center(p.box) for p in points])
   dt = np.diff([p.timestamp_s for p in points])
   step = np.linalg.norm(np.diff(c, axis=0), axis=1)
   sizes = np.array([size(p.box) for p in points[1:]])
-
   return float(np.median(step / np.maximum(dt, 1e-6) / np.maximum(sizes, 1e-6)))
 
 def present(inp, classes, min_px=0.0):
   i, out = inp.frame.sample_index, []
   for t in inp.tracks.values():
-    if t.last_index != 1: continue
+    if t.last_index != i: continue
     name, px = inp.feat(t)
     if name in classes and px >= min_px: out.append(t)
-    return out
+  return out
