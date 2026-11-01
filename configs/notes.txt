@@ -1,0 +1,7 @@
+A few design notes, since YAML here carries no comments:
+
+- **`reference_mode`** is `running_average` or `fixed`, which replaces your old `real_time` boolean with something self-describing.
+- **`sample_every_n_frames`** replaces fps-based sampling for now. Time-based thresholds (`stationary_seconds` etc.) will need the video's fps, so the loader should read it from each clip rather than assume 30.
+- **The `version` block** feeds the provenance fields (model version, processing-run ID) you planned for in the data contracts.
+- **Anomaly rules** are deliberately track-based (stationary or abandoned objects, loitering, speed outliers, crowd size). Motion-only anomaly detection would inherit the lighting and shadow false positives your plan warns about.
+- **Weights** (`yolov8n.pt`) are downloaded on first run. Keep them out of git per your `.gitignore`. The `ultralytics` package also bundles ByteTrack, so no separate tracker install is needed to start.
