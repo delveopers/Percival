@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from percival.anomaly.features import label, median_size, spread, window, still_limit
+from percival.anomaly.features import label, median_size, spread, still_limit, window
 from percival.contracts import TrackSegment
 
 @dataclass(slots=True)
@@ -17,8 +17,7 @@ class BehaviorStates:
     self.states = {}
 
   def update(self, frame, tracks):
-    c, now, idx, closed = self.cfg, self.timestamp_s, frame.sample_index, []
-
+    c, now, idx, closed = self.cfg, frame.timestamp_s, frame.sample_index, []
     for tid, t in tracks.items():
       if t.last_index != idx: continue
       ts = self.states.setdefault(tid, TrackState())
@@ -50,10 +49,12 @@ class BehaviorStates:
   def _classify(self, t, name, now):
     c = self.cfg
     pts = window(t, now, c.state_window_seconds)
-    if len(pts) < 4 or pts[-1].timestamp_s - pts[0].timestamp_s < 0.75 * c.state_window_secnods: return None
+
+    if len(pts) < 4 or pts[-1].timestamp_s - pts[0].timestamp_s < 0.75 * c.state_window_seconds: return None
     size_px = median_size(pts)
     if size_px < c.rule_min_box_px: return None
     sp, _ = spread(pts)
+
     return ("still" if sp <= still_limit(c, name, size_px) else "moving"), pts[0]
 
   def _segment(self, tid, ts, end):

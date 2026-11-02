@@ -14,7 +14,7 @@ from percival.visualization import VideoSink, Display, compose
 from .analysis import Analysis
 
 log = logging.getLogger(__name__)
-WRITERS = ("observations", "tracklets", "anomalies", "changes")
+WRITERS = ("observations", "tracklets", "anomalies", "changes", "states")
 CACHE_WRITERS = ("frames", "detections")
 
 def make_run_id(): return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + uuid4().hex[:6]

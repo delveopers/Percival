@@ -60,8 +60,8 @@ def duplicate_pairs(frames):
 def unreachable(cfg, frames, fps):
   a, duration = cfg["anomaly"], frames / fps
   warm = a["warmup_seconds"]
-  need = {"stationary": a["stationary_seconds"], "abandoned": a["stationary_seconds"], "loitering": a["loitering_seconds"], "crowd": a["crowd_min_seconds"], "speed": 0}
-  return [f"{r}: needs {max(s, warm):.1f}s (rule {s}s, warm-up {warm:.1f}s) but the clip is {duration:.1f}s" for r, s in need.items() if r in a["rules"] and duration < max(s, warm)]
+  need = {"stationary": a["stationary_seconds"] + 1.5, "abandoned": a["stationary_seconds"] + 1.5, "dwell": a["dwell_seconds"] + 1.5, "loitering": a["loitering_seconds"], "density": a["density_min_seconds"], "surge": a["surge_min_seconds"], "speed": 0}
+  return [f"{r}: needs {max(s, warm):.1f}s (rule {s:.1f}s, warm-up {warm:.1f}s) but the clip is {duration:.1f}s" for r, s in need.items() if r in a["rules"] and duration < max(s, warm)]
 
 def clip_report(entry, cfg, obs, trk, ang, chg):
   counts, fps = entry["counts"], entry["effective_fps"]

@@ -13,7 +13,7 @@ from .run import make_run_id, now_iso
 log = logging.getLogger(__name__)
 BLANK = np.zeros((1, 1, 3), np.uint8)
 COPIED = ("frames", "detections", "changes")
-WRITERS = ("observations", "tracklets", "anomalies")
+WRITERS = ("observations", "tracklets", "anomalies", "states")
 
 def read_jsonl(path):
   return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()] if path.is_file() else []
