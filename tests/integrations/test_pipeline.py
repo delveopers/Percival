@@ -1,7 +1,7 @@
 import json
 import pytest
 import yaml
-from percival.contracts import Anomaly, ChangeCandidate, Detection, FrameMeta, Observation, Tracklet
+from percival.contracts import Anomaly, ChangeCandidate, Detection, FrameMeta, Observation, TrackSegment, Tracklet
 from percival.evaluation import evaluate, load_labels
 from percival.pipeline import replay, run
 from percival.qa import analyze
@@ -44,7 +44,9 @@ def test_end_to_end_produces_valid_linked_outputs(live):
   trk = [Tracklet.model_validate(r) for r in rows(out, "tracklets")]
   assert len(trk) == 1 and len(trk[0].points) == 60
   an = [Anomaly.model_validate(r) for r in rows(out, "anomalies")]
-  assert [a.kind for a in an] == ["stationary_object"] and an[0].start_s >= 2.0
+  assert [a.kind for a in an] == ["stationary_object"] and an[0].start_s <= 0.5 and an[0].end_s >= 5.5
+  segs = [TrackSegment.model_validate(r) for r in rows(out, "states")]
+  assert [s.state for s in segs] == ["still"] and c["counts"]["state_segments"] == 1
   assert all(ChangeCandidate.model_validate(r) for r in rows(out, "changes"))
   assert not list(out.glob("*.tmp"))
 
@@ -52,15 +54,15 @@ def test_replay_reproduces_the_live_results_exactly(live):
   project, out = live
   again = replay(project.cfg(), out, lambda fps: StubTracker())
   assert again != out and json.loads((again / "run.json").read_text())["mode"] == "replay" and json.loads((again / "run.json").read_text())["source_run"] == json.loads((out / "run.json").read_text())["run_id"]
-  for name in ("observations", "tracklets", "anomalies"):
+  for name in ("observations", "tracklets", "anomalies", "states"):
     assert stripped(again, name) == stripped(out, name) and rows(again, name)
 
 def test_replay_with_a_different_config_changes_only_the_downstream_results(live):
   project, out = live
-  project.write_config({"processing": {"anomaly": {"stationary_seconds": 4, "loitering_seconds": 10}}})
+  assert len(rows(out, "anomalies")) == 1
+  project.write_config({"processing": {"anomaly": {"stationary_seconds": 8, "loitering_seconds": 10}}})
   again = replay(project.cfg(), out, lambda fps: StubTracker())
-  assert stripped(again, "observations") == stripped(out, "observations")
-  assert rows(out, "anomalies")[0]["start_s"] < 3 and rows(again, "anomalies")[0]["start_s"] >= 4.0
+  assert stripped(again, "observations") == stripped(out, "observations") and rows(again, "anomalies") == []
 
 def test_replay_needs_the_detection_cache(project):
   project.video("good.mp4")
@@ -78,13 +80,15 @@ def test_a_failing_clip_is_isolated_and_the_run_is_partial(project):
   assert {r["clip_id"] for r in rows(out, "anomalies")} == {"good"}
   assert [c["clip_id"] for c in json.loads((replay(project.cfg(), out, lambda fps: StubTracker()) / "run.json").read_text())["clips"]] == ["good"]
 
-def test_crowd_rule_follows_raw_detections_even_when_the_tracker_misses_people(project):
+def test_surge_and_density_follow_raw_detections_even_when_the_tracker_misses_people(project):
   project.video("good.mp4")
-  project.write_config({"processing": {"anomaly": {"rules": ["crowd"], "crowd_count": 8, "crowd_min_seconds": 1.0}}, "models": {"detector": {"classes": ["person"]}}})
-  scene = lambda frame: [((100.0 * k, 100.0, 40.0, 100.0), "person", 0.9) for k in range(1, 6 if frame.sample_index < 30 else 16)]
+  project.write_config({"processing": {"anomaly": {"rules": ["surge", "density"], "surge_count": 8, "surge_min_seconds": 1.0, "density_min_seconds": 1.0}}, "models": {"detector": {"classes": ["person"]}}})
+  scene = lambda frame: [((60.0 * k, 100.0, 40.0, 100.0), "person", 0.9) for k in range(1, 6 if frame.sample_index < 30 else 16)]
   out = run(project.cfg(), StubDetector(scene), lambda fps: StubTracker(limit=5))
-  an = rows(out, "anomalies")
-  assert [a["kind"] for a in an] == ["crowd"] and an[0]["details"]["count"] == 15 and 2.9 <= an[0]["start_s"] <= 3.2
+  an = sorted(rows(out, "anomalies"), key=lambda a: a["start_s"])
+  assert [a["kind"] for a in an] == ["group", "crowd", "crowd_surge"] or [a["kind"] for a in an] == ["group", "crowd_surge", "crowd"]
+  surge = next(a for a in an if a["kind"] == "crowd_surge")
+  assert surge["details"]["count"] == 15 and 2.9 <= surge["start_s"] <= 3.2
   assert max(len([o for o in rows(out, "observations") if o["sample_index"] == i]) for i in range(60)) == 5
 
 def test_annotated_video_uses_a_safe_filename(project):
