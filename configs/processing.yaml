@@ -18,29 +18,45 @@ tracking:
   enabled: true
   max_lost_frames: 45
   min_track_length: 5
+  label_window: 15
 anomaly:
   enabled: true
-  rules: [stationary, abandoned, loitering, speed, crowd]
-  stationary_seconds: 8
-  loitering_seconds: 12
-  owner_absent_seconds: 5
-  warmup_frames: 20
+  rules: [stationary, dwell, abandoned, loitering, speed, density, surge]
+  warmup_seconds: 4
   min_confidence: 0.35
+  cooldown_seconds: 5.0
+  rule_min_box_px: 10
+  state_window_seconds: 2.0
+  state_min_seconds: 1.0
+  still_min_px: 4
+  stationary_seconds: 8
+  stationary_radius: 0.25
+  stationary_classes: [car, bus, truck, motorcycle, bicycle]
+  dwell_seconds: 5
+  dwell_radius: 0.5
+  dwell_classes: [person]
+  abandoned_classes: [backpack, handbag, suitcase]
+  owner_distance: 1.5
+  owner_absent_seconds: 5
+  loitering_seconds: 12
+  loiter_radius: 3.0
+  loiter_min_spread: 0.5
+  loiter_min_px: 6
+  loiter_classes: [person]
   speed_zscore: 3.0
   speed_min_samples: 50
   speed_min_seconds: 1.0
-  crowd_count: 8
-  crowd_zscore: 3.0
-  crowd_min_increase: 4
-  crowd_baseline_seconds: 30
-  crowd_min_seconds: 2.0
-  cooldown_seconds: 5.0
-  stationary_radius: 0.25
-  loiter_radius: 3.0
-  loiter_min_spread: 0.5
-  owner_distance: 1.5
-  stationary_classes: [car, bus, truck, motorcycle, bicycle]
-  abandoned_classes: [backpack, handbag, suitcase]
-  loiter_classes: [person]
   speed_classes: [person, bicycle, car, motorcycle, bus, truck]
   crowd_classes: [person]
+  crowd_min_confidence: 0.3
+  group_min: 3
+  group_link: 1.5
+  crowd_min: 8
+  crowd_link: 4.0
+  crowd_total: 20
+  density_min_seconds: 2.0
+  surge_count: 8
+  surge_zscore: 3.0
+  surge_min_increase: 4
+  surge_baseline_seconds: 30
+  surge_min_seconds: 2.0
