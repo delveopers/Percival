@@ -67,36 +67,51 @@ class TrackingCfg(Section):
   enabled: bool = True
   max_lost_frames: int = Field(30, ge=0)
   min_track_length: int = Field(5, ge=1)
+  label_window: int = Field(15, ge=1)
 
-RULE_NAMES = ("stationary", "abandoned", "loitering", "speed", "crowd")
+RULE_NAMES = ("stationary", "dwell", "abandoned", "loitering", "speed", "density", "surge")
 
 class AnomalyCfg(Section):
   enabled: bool = True
   rules: tuple[str, ...] = RULE_NAMES
-  stationary_seconds: float = Field(20, gt=0)
-  loitering_seconds: float = Field(30, gt=0)
-  speed_zscore: float = Field(3.0, gt=0)
-  crowd_count: int = Field(8, ge=1)
   warmup_seconds: float = Field(12.0, ge=0)
   min_confidence: float = Field(0.5, ge=0, le=1)
+  cooldown_seconds: float = Field(5.0, ge=0)
+  rule_min_box_px: float = Field(10.0, ge=0)
+  state_window_seconds: float = Field(2.0, gt=0)
+  state_min_seconds: float = Field(1.0, ge=0)
+  still_min_px: float = Field(4.0, ge=0)
+  stationary_seconds: float = Field(20, gt=0)
   stationary_radius: float = Field(0.25, gt=0)
-  loiter_radius: float = Field(3.0, gt=0)
-  loiter_min_spread: float = Field(0.5, ge=0)
+  stationary_classes: tuple[str, ...] = ("car", "bus", "truck", "motorcycle", "bicycle")
+  dwell_seconds: float = Field(5.0, gt=0)
+  dwell_radius: float = Field(0.5, gt=0)
+  dwell_classes: tuple[str, ...] = ("person",)
+  abandoned_classes: tuple[str, ...] = ("backpack", "handbag", "suitcase")
   owner_distance: float = Field(1.5, gt=0)
   owner_absent_seconds: float = Field(10, gt=0)
-  crowd_min_seconds: float = Field(2.0, ge=0)
-  cooldown_seconds: float = Field(5.0, ge=0)
+  loitering_seconds: float = Field(30, gt=0)
+  loiter_radius: float = Field(3.0, gt=0)
+  loiter_min_spread: float = Field(0.5, ge=0)
+  loiter_min_px: float = Field(6.0, ge=0)
+  loiter_classes: tuple[str, ...] = ("person",)
+  speed_zscore: float = Field(3.0, gt=0)
   speed_min_samples: int = Field(50, ge=2)
   speed_min_seconds: float = Field(1.0, ge=0)
-  crowd_zscore: float = Field(3.0, gt=0)
-  crowd_min_increase: int = Field(4, ge=1)
-  crowd_baseline_seconds: float = Field(30, gt=0)
-  crowd_min_confidence: float = Field(0.3, ge=0, le=1)
-  stationary_classes: tuple[str, ...] = ("car", "bus", "truck", "motorcycle", "bicycle")
-  abandoned_classes: tuple[str, ...] = ("backpack", "handbag", "suitcase")
-  loiter_classes: tuple[str, ...] = ("person",)
   speed_classes: tuple[str, ...] = ("person", "bicycle", "car", "motorcycle", "bus", "truck")
   crowd_classes: tuple[str, ...] = ("person",)
+  crowd_min_confidence: float = Field(0.3, ge=0, le=1)
+  group_min: int = Field(3, ge=2)
+  group_link: float = Field(1.5, gt=0)
+  crowd_min: int = Field(8, ge=2)
+  crowd_link: float = Field(4.0, gt=0)
+  crowd_total: int = Field(20, ge=2)
+  density_min_seconds: float = Field(2.0, ge=0)
+  surge_count: int = Field(8, ge=1)
+  surge_zscore: float = Field(3.0, gt=0)
+  surge_min_increase: int = Field(4, ge=1)
+  surge_baseline_seconds: float = Field(30, gt=0)
+  surge_min_seconds: float = Field(2.0, ge=0)
 
   @field_validator("rules")
   @classmethod
@@ -106,10 +121,12 @@ class AnomalyCfg(Section):
     return v
 
   @model_validator(mode="after")
-  def check_times(self):
+  def check_relations(self):
     if self.loitering_seconds < self.stationary_seconds: raise ValueError("loitering_seconds must be >= stationary_seconds")
     if self.owner_absent_seconds > self.stationary_seconds: raise ValueError("owner_absent_seconds must be <= stationary_seconds")
     if self.loiter_min_spread >= self.loiter_radius: raise ValueError("loiter_min_spread must be < loiter_radius")
+    if self.crowd_min < self.group_min: raise ValueError("crowd_min must be >= group_min")
+    if self.crowd_link < self.group_link: raise ValueError("crowd_link must be >= group_link")
     return self
 
 class DetectorCfg(Section):

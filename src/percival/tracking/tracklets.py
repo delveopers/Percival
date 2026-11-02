@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, deque
 from dataclasses import dataclass, field
 from percival.contracts import TrackPoint, Tracklet
 
@@ -8,7 +8,9 @@ class OpenTrack:
   run_id: str; clip_id: str
   detector_version: str; tracker_version: str
   points: list = field(default_factory=list)
+  times: list = field(default_factory=list)
   votes: Counter = field(default_factory=Counter)
+  recent: deque = field(default_factory=deque)
   conf_sum: float = 0.0
   last_index: int = 0
 
@@ -20,9 +22,11 @@ class TrackletBuilder:
   def update(self, observations, sample_index):
     for o in observations:
       t = self.tracks.get(o.track_id)
-      if t is None: t = self.tracks[o.track_id] = OpenTrack(o.track_id, o.run_id, o.clip_id, o.detector_version, o.tracker_version)
-      t.points.append(TrackPoint(source_index=o.source_index, sample_index=o.sample_index, timestamp_s=o.timestamp_s, box=o.box, confidence=o.confidence))
+      if t is None: t = self.tracks[o.track_id] = OpenTrack(o.track_id, o.run_id, o.clip_id, o.detector_version, o.tracker_version, recent=deque(maxlen=self.cfg.label_window))
+      t.times.append(o.timestamp_s)
+      t.points.append(TrackPoint(source_index=o.source_index, sample_index=o.sample_index, timestamp_s=o.timestamp_s, box=o.box, confidence=o.confidence, class_name=o.class_name))
       t.votes[o.class_name] += 1
+      t.recent.append(o.class_name)
       t.conf_sum += o.confidence
       t.last_index = o.sample_index
     stale = [i for i, t in self.tracks.items() if sample_index - t.last_index > self.cfg.max_lost_frames]

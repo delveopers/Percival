@@ -1,3 +1,4 @@
+from bisect import bisect_left
 from collections import Counter
 import numpy as np
 
@@ -6,7 +7,11 @@ def size(box): return max(box[2], box[3])
 def rnd(v): return round(float(v), 2)
 def confidence(base, margin): return float(base * (0.7 + 0.3 * min(1.0, max(0.0, margin))))
 def mean_conf(points): return float(np.mean([p.confidence for p in points]))
-def median_size(points): return float(np.median([size(p.box) for p in points]))
+def median_size(points):
+  v = sorted(max(p.box[2], p.box[3]) for p in points)
+  m = len(v) // 2
+  return float(v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2)
+
 def path_length(c): return float(np.linalg.norm(np.diff(c, axis=0), axis=1).sum())
 
 def label(t): return Counter(t.recent).most_common(1)[0][0] if t.recent else t.votes.most_common(1)[0][0]
@@ -14,17 +19,13 @@ def label(t): return Counter(t.recent).most_common(1)[0][0] if t.recent else t.v
 def radius_for(cfg, name): return cfg.dwell_radius if name in cfg.dwell_classes else cfg.stationary_radius
 def still_limit(cfg, name, size_px): return max(radius_for(cfg, name) * size_px, cfg.still_min_px)
 
-def window(track, now, seconds):
-  out = []
-  for p in reversed(track.points):
-    if p.timestamp_s < now - seconds: break
-    out.append(p)
-  out.reverse()
-  return out
+def window(track, now, seconds): return track.points[bisect_left(track.times, now - seconds):]
 
 def spread(points, q=90):
   c = np.array([center(p.box) for p in points])
-  return float(np.percentile(np.linalg.norm(c - np.median(c, axis=0), axis=1), q)), c
+  d = np.linalg.norm(c - np.median(c, axis=0), axis=1)
+  k = int(round(q / 100 * (len(d) - 1)))
+  return float(np.partition(d, k)[k]), c
 
 def speed(points):
   c = np.array([center(p.box) for p in points])
