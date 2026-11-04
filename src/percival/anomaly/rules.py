@@ -3,7 +3,7 @@ from collections import deque
 from dataclasses import dataclass, field
 import numpy as np
 from percival.contracts import Frame
-from .features import center, confidence, label, mean_conf, median_size, path_length, present, rnd, size, spread, speed, still_limit, window
+from .features import anchor_spread, center, confidence, label, mean_conf, median_size, path_length, present, rnd, size, spread, speed, still_limit, window
 
 OWNER_CLASS = "person"
 SPEED_POINTS = 6
@@ -42,23 +42,31 @@ def stills(inp, cfg, classes, seconds):
     out.append((t, s))
   return out
 
+STILL_SLACK = 1.25
+
 def still_trigger(cfg, t, s, inp, extra=None):
   now, name = inp.frame.timestamp_s, label(t)
   pts = window(t, now, now - s.since[0])
-  sp, _ = spread(pts)
+  sp = anchor_spread(pts, s.anchor)
   limit = still_limit(cfg, name, median_size(pts))
+  if sp > limit * STILL_SLACK: return None
   details = {"duration_s": rnd(now - s.since[0]), "spread_px": rnd(sp), "limit_px": rnd(limit), **(extra or {})}
   return Trigger(confidence(mean_conf(pts[-30:]), 1 - sp / limit), [t.track_id], [name], pts[-1].box, details, s.since[0], s.since[1])
 
+def still_triggers(cfg, inp, classes, seconds, extra=None):
+  out = {}
+  for t, s in stills(inp, cfg, classes, seconds):
+    trig = still_trigger(cfg, t, s, inp, extra)
+    if trig is not None: out[t.track_id] = trig
+  return out
+
 class StationaryRule:
   name, kind = "stationary", "stationary_object"
-
   def __init__(self, cfg): self.cfg = cfg
 
   def check(self, inp):
     c = self.cfg
-    return {t.track_id: still_trigger(c, t, s, inp) for t, s in stills(inp, c, c.stationary_classes, c.stationary_seconds)}
-
+    return still_triggers(c, inp, c.stationary_classes, c.stationary_seconds)
 class DwellRule:
   name, kind = "dwell", "dwell"
 

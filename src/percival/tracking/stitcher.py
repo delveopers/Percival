@@ -8,7 +8,7 @@ class Memory:
   size: float
   cls: float
 
-class Sticher:
+class Stitcher:
   def __init__(self, cfg):
     self.cfg = cfg
     self.alias, self.mem = {}, {}

@@ -27,6 +27,11 @@ def spread(points, q=90):
   k = int(round(q / 100 * (len(d) - 1)))
   return float(np.partition(d, k)[k]), c
 
+def anchor_spread(points, anchor, q=90):
+  c = np.array([center(p.box) for p in points])
+  d = np.linalg.norm(c - np.asarray(anchor), axis=1)
+  return float(np.partition(d, int(round(q / 100 * (len(d) - 1))))[int(round(q / 100 * (len(d) - 1)))])
+
 def speed(points):
   c = np.array([center(p.box) for p in points])
   dt = np.diff([p.timestamp_s for p in points])

@@ -1,2 +1,2 @@
 from .tracklets import TrackletBuilder
-from .sticher import Sticher, Memory
+from .stitcher import Stitcher, Memory
