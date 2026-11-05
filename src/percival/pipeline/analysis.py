@@ -1,17 +1,22 @@
 from percival.anomaly import AnomalyEngine
 from percival.behavior import BehaviorStates
-from percival.tracking import TrackletBuilder
+from percival.tracking import Stitcher, TrackletBuilder
 
 class Analysis:
   def __init__(self, cfg, run_id, clip_id, tracker, writers, metrics):
     self.tracker, self.writers, self.m = tracker, writers, metrics
     self.builder = TrackletBuilder(cfg.tracking)
+    self.stitcher = Stitcher(cfg.tracking) if cfg.tracking.stitch else None
     self.engine = AnomalyEngine(cfg.anomaly, run_id, clip_id) if cfg.anomaly.enabled else None
     self.behavior = BehaviorStates(cfg.anomaly, run_id, clip_id) if cfg.anomaly.enabled else None
 
   def step(self, frame, dets, scene):
     m, w = self.m, self.writers
     with m.time("track"): obs = self.tracker.update(frame, dets)
+
+    if self.stitcher:
+      obs = self.stitcher.process(obs)
+      m.add("stitched", self.stitcher.merges)
     m.add("tracker_dropped", getattr(self.tracker, "last_dropped", 0))
     m.add("duplicate_box_frames", len({o.box for o in obs}) < len(obs))
 
@@ -27,7 +32,6 @@ class Analysis:
       m.add("anomalies", len(events))
       active = self.engine.active
     self._tracklets(closed)
-
     return obs, active
 
   def finish(self):

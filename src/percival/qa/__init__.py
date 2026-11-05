@@ -1,2 +1,2 @@
 from .report import analyze, render, main
-from ..analysis import Analysis
+from ..pipeline.analysis import Analysis

@@ -57,7 +57,7 @@ class Stitcher:
 
     for (raw, canon), cost in sorted(costs.items(), key=lambda kv: kv[1]):
       if raw in out or canon in used: continue
-      if cost > min(by_new[raw]) or cost > min[by_cand[canon]]: continue
+      if cost > min(by_new[raw]) or cost > min(by_cand[canon]): continue
       if clear(by_new, raw, cost) and clear(by_cand, canon, cost):
         out[raw] = canon
         used.add(canon)
