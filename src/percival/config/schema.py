@@ -68,6 +68,11 @@ class TrackingCfg(Section):
   max_lost_frames: int = Field(30, ge=0)
   min_track_length: int = Field(5, ge=1)
   label_window: int = Field(15, ge=1)
+  stitch: bool = True
+  stitch_gap_seconds: float = Field(2.0, gt=0)
+  stitch_distance: float = Field(0.75, gt=0)
+  stitch_speed: float = Field(1.0, ge=0)
+  stitch_ambiguity: float = Field(0.7, gt=0, le=1)
 
 RULE_NAMES = ("stationary", "dwell", "abandoned", "loitering", "speed", "density", "surge")
 

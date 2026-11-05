@@ -52,6 +52,7 @@ class Detection(BaseModel):
 class Observation(Detection):
   track_id: int
   tracker_version: str
+  raw_track_id: Optional[int] = None
 
 class FrameMeta(BaseModel):
   model_config = ConfigDict(frozen=True)

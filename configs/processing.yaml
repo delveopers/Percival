@@ -19,6 +19,11 @@ tracking:
   max_lost_frames: 45
   min_track_length: 5
   label_window: 15
+  stitch: true
+  stitch_gap_seconds: 2.0
+  stitch_distance: 0.75
+  stitch_speed: 1.0
+  stitch_ambiguity: 0.7
 anomaly:
   enabled: true
   rules: [stationary, dwell, abandoned, loitering, speed, density, surge]
