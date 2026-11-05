@@ -2,7 +2,7 @@ import argparse, json, sys
 from collections import Counter
 from pathlib import Path
 
-SCALARS = ("observations", "objects_per_frame_mean", "tracks", "tracklets", "orphan_observations")
+SCALARS = ("observations", "objects_per_frame_mean", "tracks", "stitched", "tracklets", "orphan_observations", "inconsistent_still", "still_events")
 LISTS = ("possible_fragments", "tracks_big_gap", "tracks_low_coverage", "tracks_hopping", "duplicate_track_pairs")
 
 def load(run_dir):

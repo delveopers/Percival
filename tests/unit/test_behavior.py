@@ -49,3 +49,9 @@ def test_the_class_label_follows_recent_sightings_not_the_whole_history():
   assert label(b.tracks[1]) == "handbag"
   tracklet = b.finish()[0]
   assert tracklet.class_name == "backpack" and [p.class_name for p in tracklet.points][:1] == ["backpack"] and tracklet.points[-1].class_name == "handbag"
+
+def test_slow_drift_never_produces_a_long_still_period():
+  segs = segments(lambda i: [(1, "person", (100 + 1.8 * i, 100, 40, 120))], 150)
+  still = [s for s in segs if s.state == "still"]
+  assert segs[0].state == "still" and any(s.state == "moving" for s in segs)
+  assert all(s.end_s - s.start_s <= 5.5 for s in still)

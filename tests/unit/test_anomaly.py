@@ -188,3 +188,26 @@ def test_scene_change_pauses_open_events():
 def test_event_closes_after_cooldown_when_object_leaves():
   out, e = run(lambda i: car(i) if i < 70 else [], 100, ["stationary"], finish=False)
   assert len(out) == 1 and out[0].end_s < 7.1 and not e.active
+
+drifter = lambda per_frame, cls="person", w=40, h=120: (lambda i: [(1, cls, (100 + per_frame * i, 100, w, h))])
+
+def test_slow_drift_is_not_dwelling_but_staying_within_tolerance_is():
+  assert not run(drifter(1.8), 100, ["dwell"], dwell_seconds=5)[0]
+  assert kinds(run(drifter(0.5), 100, ["dwell"], dwell_seconds=5)[0]) == ["dwell"]
+
+def test_a_slowly_rolling_vehicle_is_not_stationary():
+  assert not run(drifter(0.5, "car", 80, 50), 100, ["stationary"])[0]
+  assert kinds(run(drifter(0.1, "car", 80, 50), 100, ["stationary"])[0]) == ["stationary_object"]
+
+def test_every_reported_still_event_respects_its_own_tolerance():
+  rng = np.random.default_rng(7)
+  checked = 0
+  for seed in range(12):
+    r = np.random.default_rng(seed)
+    speed, jitter, cls, (w, h) = r.uniform(0, 3), r.uniform(0, 12), r.choice(["person", "car"]), ((40, 120) if r.random() < .5 else (90, 60))
+    noise = rng.normal(0, jitter, (200, 2))
+    scene = lambda i: [(1, str(cls), (100 + speed * i + noise[i, 0], 100 + noise[i, 1], w, h))]
+    for a in run(scene, 200, ["dwell", "stationary"], dwell_seconds=3, stationary_seconds=5)[0]:
+      checked += 1
+      assert a.details["spread_px"] <= 1.25 * a.details["limit_px"], (seed, a.details)
+  assert checked > 3

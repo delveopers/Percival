@@ -20,7 +20,7 @@ class Stitcher:
     now = obs[0].timestamp_s
     known = {o.track_id: self.alias[o.track_id] for o in obs if o.track_id in self.alias}
     new = [o for o in obs if o.track_id not in self.alias]
-    
+
     for raw, canon in self._match(new, now, set(known.values())).items():
       known[raw] = canon
 
@@ -43,7 +43,7 @@ class Stitcher:
       ox, oy, osize = o.box[0] + o.box[2] / 2, o.box[1] + o.box[3] / 2, max(o.box[2], o.box[3])
       for canon, m in cands.items():
         if m.cls != o.class_name: continue
-        reach = (c.stiched_distance + c.stiched_speed * (now - m.t)) * max(osize, m.size)
+        reach = (c.stitch_distance + c.stitch_speed * (now - m.t)) * max(osize, m.size)
         cost = math.hypot(ox - m.x, oy - m.y) / reach
         if cost <= 1.0: costs[(o.track_id, canon)] = cost
 
@@ -54,7 +54,7 @@ class Stitcher:
 
     clear = lambda group, key, cost: len(group[key]) == 1 or cost <= c.stitch_ambiguity * sorted(group[key])[1]
     out, used = {}, set()
-    
+
     for (raw, canon), cost in sorted(costs.items(), key=lambda kv: kv[1]):
       if raw in out or canon in used: continue
       if cost > min(by_new[raw]) or cost > min[by_cand[canon]]: continue

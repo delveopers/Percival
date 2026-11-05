@@ -4,6 +4,7 @@ from itertools import combinations
 from pathlib import Path
 
 JUMP_PER_FRAME, DUP_IOU, MIN_COVERAGE, BIG_GAP, FRAG_GAP, FRAG_DIST = 1.0, 0.7, 0.6, 10, 30, 1.5
+STILL_SLACK = 1.25
 STAGES = ("motion", "detect", "track", "anomaly", "render")
 
 def load(run_dir, name):
@@ -81,21 +82,25 @@ def clip_report(entry, cfg, obs, trk, ang, chg):
   tracks = [track_stats(v) for v in by_track.values()]
   chg_frames = {c["sample_index"] for c in chg}
   tracklet_points = sum(len(t["points"]) for t in trk)
+  still = [a for a in ang if a["kind"] in ("dwell", "stationary_object") and "spread_px" in a["details"]]
+  inconsistent = [a for a in still if a["details"]["spread_px"] > STILL_SLACK * a["details"]["limit_px"]]
   anomalies = [{"kind": a["kind"], "start_s": a["start_s"], "end_s": a["end_s"], "confidence": round(a["confidence"], 3), "tracks": len(a["track_ids"]), "at_warmup_end": 0 <= a["start_s"] - cfg["anomaly"]["warmup_seconds"] <= 1.5 / fps, "at_clip_end": a["end_index"] >= frames - 1, "details": a["details"]} for a in ang]
   seconds = entry.get("seconds", {})
   total = sum(seconds.values()) or 1
+
   r = {"clip_id": entry["clip_id"], "frames": frames, "effective_fps": fps, "duration_s": round(frames / fps, 1), "observations": len(obs), "frames_with_observations": len(by_frame), "objects_per_frame_mean": round(st.mean(per_frame), 1) if per_frame else 0, "objects_per_frame_max": max(per_frame, default=0), "objects_first_last": [series[:5], series[-5:]],
        "duplicate_box_frames": dup_frames, "tracks": len(tracks), "tracklets": len(trk), "orphan_observations": len(obs) - tracklet_points if consistent else None,
        "tracks_short": sum(t["n"] < cfg["tracking"]["min_track_length"] for t in tracks), "tracks_low_coverage": [t["track_id"] for t in tracks if t["coverage"] < MIN_COVERAGE], "tracks_big_gap": [[t["track_id"], t["max_gap"]] for t in tracks if t["max_gap"] > BIG_GAP], "tracks_hopping": [[t["track_id"], round(t["max_hop"], 2)] for t in tracks if t["max_hop"] > JUMP_PER_FRAME] if geo else [],
        "duplicate_track_pairs": duplicate_pairs(by_frame) if geo else [], "possible_fragments": fragments(tracks) if geo else [], "median_track_points": st.median([t["n"] for t in tracks]) if tracks else 0,
        "motion": {"candidates": len(chg), "frames_with_changes": len(chg_frames), "frames_motion_without_detection": len(chg_frames - set(by_frame))},
-       "anomalies": anomalies, "unreachable_rules": unreachable(cfg, frames, fps), "tracker_dropped": counts.get("tracker_dropped"), "avg_ms_per_frame": entry.get("avg_ms_per_frame", {}), "time_share": {k: round(seconds.get(k, 0) / total, 2) for k in STAGES if k in seconds}}
+       "anomalies": anomalies, "unreachable_rules": unreachable(cfg, frames, fps), "tracker_dropped": counts.get("tracker_dropped"), "stitched": counts.get("stitched", 0), "inconsistent_still": len(inconsistent), "still_events": len(still), "avg_ms_per_frame": entry.get("avg_ms_per_frame", {}), "time_share": {k: round(seconds.get(k, 0) / total, 2) for k in STAGES if k in seconds}}
   flags = []
 
   if dup_frames or counts.get("duplicate_box_frames"): flags.append(("FAIL", f"{dup_frames} frames have observations sharing the same box (tracker-to-detection mapping is broken)"))
   if not consistent: flags.append(("FAIL", f"manifest counted {expected} observations but {len(obs)} were loaded (observations file missing or renamed?)"))
   if not geo and consistent: flags.append(("INFO", "geometry checks (ID hopping, duplicate IDs, fragments) skipped because the boxes are invalid"))
   if not obs and chg and consistent: flags.append(("WARN", f"no detections at all, but motion found in {len(chg_frames)} frames"))
+  if inconsistent: flags.append(("WARN", f"{len(inconsistent)} of {len(still)} dwell/stationary events moved more than {STILL_SLACK}x their own tolerance (the still-state definition is inconsistent)"))
   if consistent and r["orphan_observations"]: flags.append(("WARN", f"{r['orphan_observations']} observations belong to no tracklet (short fragments or reused IDs)"))
   if r["tracks_hopping"]: flags.append(("WARN", f"{len(r['tracks_hopping'])} tracks jump farther than {JUMP_PER_FRAME} box sizes per frame (ID hopping): {r['tracks_hopping'][:5]}"))
   if r["tracks_low_coverage"]: flags.append(("WARN", f"{len(r['tracks_low_coverage'])} tracks are seen in under {int(MIN_COVERAGE * 100)}% of their frames: {r['tracks_low_coverage'][:8]}"))
@@ -132,7 +137,7 @@ def render(rep):
   for s in rep["not_completed"]: out.append(f"{s['clip_id'][:40]:40} not completed: {s['status']} {s['error'] or ''}")
 
   for c in rep["clips"]:
-    out += ["", f"== {c['clip_id']}  [{c['status']}]", f"  {c['duration_s']}s at {c['effective_fps']} fps, {c['frames']} frames", f"  objects per frame: mean {c['objects_per_frame_mean']}, max {c['objects_per_frame_max']}; frames with objects: {c['frames_with_observations']}", f"  objects in first 5 / last 5 frames: {c['objects_first_last'][0]} / {c['objects_first_last'][1]}", f"  tracks {c['tracks']} (median {c['median_track_points']} points), tracklets {c['tracklets']}, orphan observations {'n/a' if c['orphan_observations'] is None else c['orphan_observations']}",
+    out += ["", f"== {c['clip_id']}  [{c['status']}]", f"  {c['duration_s']}s at {c['effective_fps']} fps, {c['frames']} frames", f"  objects per frame: mean {c['objects_per_frame_mean']}, max {c['objects_per_frame_max']}; frames with objects: {c['frames_with_observations']}", f"  objects in first 5 / last 5 frames: {c['objects_first_last'][0]} / {c['objects_first_last'][1]}", f"  tracks {c['tracks']} (median {c['median_track_points']} points, {c['stitched']} stitched), tracklets {c['tracklets']}, orphan observations {'n/a' if c['orphan_observations'] is None else c['orphan_observations']}",
             f"  motion: {c['motion']['candidates']} candidates in {c['motion']['frames_with_changes']} frames, {c['motion']['frames_motion_without_detection']} of them with no detection"]
     if c["avg_ms_per_frame"]: out.append("  ms per frame: " + ", ".join(f"{k} {v}" for k, v in c["avg_ms_per_frame"].items()) + "  | time share: " + ", ".join(f"{k} {int(v * 100)}%" for k, v in c["time_share"].items()))
     for a in c["anomalies"]: out.append(f"  anomaly: {a['kind']} {a['start_s']}s to {a['end_s']}s, confidence {a['confidence']}, {a['tracks']} tracks | " + ", ".join(f"{k}={v}" for k, v in list(a["details"].items())[:6]))

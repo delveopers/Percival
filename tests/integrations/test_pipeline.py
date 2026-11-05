@@ -129,3 +129,30 @@ def test_replay_can_raise_the_confidence_floor_and_narrow_the_classes(project):
   assert per_frame(replay(project.cfg(), out, lambda fps: StubTracker())) == 2
   project.write_config({"models": {"detector": {"conf": 0.5, "classes": ["car"]}}})
   assert per_frame(replay(project.cfg(), out, lambda fps: StubTracker())) == 1
+
+class FlippingTracker(StubTracker):
+  def update(self, frame, dets):
+    if 30 <= frame.sample_index < 33: return []
+    return [o.model_copy(update={"track_id": 1 if frame.sample_index < 30 else 2}) for o in super().update(frame, dets)]
+
+def test_stitching_turns_two_fragments_of_a_parked_car_into_one_event(project):
+  project.video("good.mp4")
+  over = {"processing": {"anomaly": {"stationary_seconds": 4, "loitering_seconds": 10, "owner_absent_seconds": 1}}}
+  project.write_config(over)
+  out = run(project.cfg(), StubDetector(parked_car), lambda fps: FlippingTracker())
+  assert [a["kind"] for a in rows(out, "anomalies")] == ["stationary_object"]
+  assert len(rows(out, "tracklets")) == 1 and {o["track_id"] for o in rows(out, "observations")} == {1}
+  assert {o["raw_track_id"] for o in rows(out, "observations")} == {None, 2}
+  assert json.loads((out / "run.json").read_text())["clips"][0]["counts"]["stitched"] == 1
+  project.write_config({**over, "processing": {**over["processing"], "tracking": {"stitch": False}}})
+  off = run(project.cfg(), StubDetector(parked_car), lambda fps: FlippingTracker())
+  assert rows(off, "anomalies") == [] and len(rows(off, "tracklets")) == 2
+
+def test_qa_reports_events_that_contradict_their_own_tolerance(live):
+  _, out = live
+  assert analyze(out)["clips"][0]["inconsistent_still"] == 0
+  bad = json.loads((out / "anomalies.jsonl").read_text().splitlines()[0])
+  bad["details"] = {"spread_px": 100.0, "limit_px": 20.0, "duration_s": 9.0}
+  with (out / "anomalies.jsonl").open("a") as f: f.write("\n" + json.dumps(bad))
+  rep = analyze(out)["clips"][0]
+  assert rep["inconsistent_still"] == 1 and any("tolerance" in f["msg"] for f in rep["flags"])
